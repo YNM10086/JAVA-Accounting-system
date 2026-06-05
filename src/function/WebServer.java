@@ -66,11 +66,8 @@ public class WebServer {
                 case "/login"     -> handleLogin(ex);
                 case "/main"      -> html(ex, mainPage());
                 case "/save"      -> { if ("POST".equals(method)) handleSavePost(ex); else html(ex, savePage(null)); }
-                case "/query"     -> html(ex, queryPage());
-                case "/chart"     -> html(ex, chartPage());
+                case "/query"     -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
                 case "/chart-img" -> serveChart(ex);
-                case "/detail"    -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, detailPage(ex)); }
-                case "/special"   -> html(ex, specialPage());
                 default           -> redirect(ex, "/main");
             }
         } catch (Exception e) {
@@ -135,29 +132,158 @@ public class WebServer {
         }
     }
 
-    // ==================== 总消费查询 ====================
+    // ==================== 消费查询（融合总消费+折线图+明细+特殊） ====================
 
-    private static String queryPage() throws Exception {
-        String table = getMonthTable();
+    private static String queryPage(HttpExchange ex) throws Exception {
+        // 解析月份参数，默认当前月
+        int curMonth = Date_time.getMonth();
+        int selMonth = curMonth;
+        int selDay = -1;
+        String q = ex.getRequestURI().getQuery();
+        if (q != null) {
+            Map<String, String> params = parseQuery(q);
+            try { selMonth = Integer.parseInt(params.get("month")); } catch (Exception ignored) {}
+            try { selDay = Integer.parseInt(params.get("day")); } catch (Exception ignored) {}
+        }
+        if (selMonth < 1 || selMonth > 12) selMonth = curMonth;
+        String table = String.format("table_%02d", selMonth);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<h2>消费查询</h2>");
+
+        // 月份选择器
+        sb.append("<form class='inline-form' action='/query' method='get'>");
+        sb.append("<input type='number' name='month' min='1' max='12' placeholder='月份(1-12)' value='").append(selMonth).append("' style='max-width:120px'>");
+        sb.append("<button type='submit' class='btn'>切换月份</button>");
+        sb.append("</form>");
+        sb.append("<p class='hint'>当前查询: ").append(selMonth).append("月").append(selMonth == curMonth ? " (本月)" : "").append("</p>");
+
+        // === 一、统计面板 ===
+        sb.append("<section class='query-section'><h3>月度统计</h3>");
         Connection conn = One.getConn();
         if (conn == null) return errorPage("数据库连接失败");
+        try {
+            PreparedStatement ps = One.getPreparedStmt(conn,
+                "SELECT SUM(price), COUNT(DISTINCT date), COUNT(*), " +
+                "COALESCE(SUM(CASE WHEN num_1=1 THEN price END)/NULLIF(COUNT(DISTINCT CASE WHEN num_1=1 THEN date END),0),0) FROM " + table);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next() && rs.getInt(3) > 0) {
+                sb.append("<div class='stat-row'>");
+                sb.append("<div class='stat'><span>总消费</span><strong>¥").append(String.format("%.2f", rs.getDouble(1))).append("</strong></div>");
+                sb.append("<div class='stat'><span>日均消费</span><strong>¥").append(String.format("%.2f", rs.getDouble(4))).append("</strong></div>");
+                sb.append("<div class='stat'><span>消费天数</span><strong>").append(rs.getInt(2)).append(" 天</strong></div>");
+                sb.append("<div class='stat'><span>总记录数</span><strong>").append(rs.getInt(3)).append(" 条</strong></div>");
+                sb.append("</div>");
+                sb.append("<p class='hint'>日均消费仅统计日常消费</p>");
+            } else {
+                sb.append("<p>暂无消费记录。</p>");
+            }
+            rs.close(); ps.close();
+        } finally { conn.close(); }
+        sb.append("</section>");
 
-        PreparedStatement ps = One.getPreparedStmt(conn,
-            "SELECT SUM(price), COUNT(DISTINCT date), COUNT(*), " +
-            "COALESCE(SUM(CASE WHEN num_1 = 1 THEN price END) / NULLIF(COUNT(DISTINCT CASE WHEN num_1 = 1 THEN date END), 0), 0) FROM " + table);
-        ResultSet rs = ps.executeQuery();
-        StringBuilder sb = new StringBuilder();
-        sb.append("<h2>查询总消费与日均消费</h2>");
-        if (rs.next() && rs.getInt(3) > 0) {
-            sb.append("<div class='stat'><span>总消费</span><strong>¥").append(String.format("%.2f", rs.getDouble(1))).append("</strong></div>");
-            sb.append("<div class='stat'><span>日均消费（仅日常）</span><strong>¥").append(String.format("%.2f", rs.getDouble(4))).append("</strong></div>");
-            sb.append("<div class='stat'><span>消费天数</span><strong>").append(rs.getInt(2)).append(" 天</strong></div>");
-            sb.append("<div class='stat'><span>总记录数</span><strong>").append(rs.getInt(3)).append(" 条</strong></div>");
-        } else {
-            sb.append("<p>暂无消费记录。</p>");
+        // === 二、折线图 ===
+        sb.append("<section class='query-section'><h3>每日趋势</h3>");
+        Connection conn2 = One.getConn();
+        if (conn2 != null) {
+            try {
+                PreparedStatement ps2 = One.getPreparedStmt(conn2,
+                    "SELECT date, SUM(price) FROM " + table + " WHERE num_1=1 GROUP BY date ORDER BY date");
+                ResultSet rs2 = ps2.executeQuery();
+                List<Integer> days = new ArrayList<>();
+                List<Double> totals = new ArrayList<>();
+                while (rs2.next()) { days.add(rs2.getInt(1)); totals.add(rs2.getDouble(2)); }
+                rs2.close(); ps2.close();
+                if (!days.isEmpty()) {
+                    Line.drawLineChart(days, totals, table);
+                    sb.append("<img src='/chart-img?f=").append(table).append("_chart.png' class='chart-img' onerror=\"this.outerHTML='<p>图片加载失败</p>'\">");
+                } else {
+                    sb.append("<p>暂无数据。</p>");
+                }
+            } finally { conn2.close(); }
         }
-        rs.close(); ps.close(); conn.close();
-        return page("总消费查询", sb.toString());
+        sb.append("</section>");
+
+        // === 三、日消费明细 ===
+        sb.append("<section class='query-section'><h3>日消费明细</h3>");
+        sb.append("<form class='inline-form' action='/query' method='get'>");
+        sb.append("<input type='hidden' name='month' value='").append(selMonth).append("'>");
+        sb.append("<input type='number' name='day' min='1' max='31' placeholder='输入日期(日)' value='").append(selDay > 0 ? selDay : "").append("' required>");
+        sb.append("<button type='submit' class='btn'>查询</button>");
+        sb.append("</form>");
+
+        if (selDay > 0) {
+            Connection conn3 = One.getConn();
+            if (conn3 != null) {
+                try {
+                    PreparedStatement ps3 = One.getPreparedStmt(conn3,
+                        "SELECT goods, price, num_1 FROM " + table + " WHERE date=?");
+                    ps3.setInt(1, selDay);
+                    ResultSet rs3 = ps3.executeQuery();
+                    if (!rs3.isBeforeFirst()) {
+                        sb.append("<p>该日暂无消费记录。</p>");
+                    } else {
+                        sb.append("<table><tr><th>商品</th><th>价格</th><th>类型</th><th>操作</th></tr>");
+                        while (rs3.next()) {
+                            String g = rs3.getString(1);
+                            double p = rs3.getDouble(2);
+                            int n1 = rs3.getInt(3);
+                            sb.append("<tr><td>").append(esc(g)).append("</td><td>¥").append(String.format("%.2f", p))
+                                .append("</td><td>").append(n1 == 1 ? "日常" : "固定").append("</td><td>");
+                            sb.append("<form method='post' action='/query?month=").append(selMonth).append("&day=").append(selDay).append("' style='display:inline' onsubmit=\"return confirm('确认删除 ").append(esc(g)).append("？')\">");
+                            sb.append("<input type='hidden' name='action' value='delete'>");
+                            sb.append("<input type='hidden' name='day' value='").append(selDay).append("'>");
+                            sb.append("<input type='hidden' name='goods' value='").append(esc(g)).append("'>");
+                            sb.append("<button class='btn btn-sm btn-danger'>删除</button></form> ");
+                            sb.append("<button class='btn btn-sm' onclick=\"editRow('").append(escJS(g)).append("',").append(p).append(")\">编辑</button>");
+                            sb.append("</td></tr>");
+                        }
+                        sb.append("</table>");
+                        // 编辑表单
+                        sb.append("<div id='editBox' style='display:none;margin-top:16px;background:var(--surface);padding:20px;border-radius:8px;border:1px solid var(--border)'>");
+                        sb.append("<h4>编辑记录</h4>");
+                        sb.append("<form method='post' action='/query?month=").append(selMonth).append("&day=").append(selDay).append("'>");
+                        sb.append("<input type='hidden' name='action' value='edit'>");
+                        sb.append("<input type='hidden' name='day' value='").append(selDay).append("'>");
+                        sb.append("<input type='hidden' name='oldGoods' id='eOld'>");
+                        sb.append("<label>商品名</label><input name='newGoods' id='eName' required>");
+                        sb.append("<label>价格</label><input name='newPrice' id='ePrice' type='number' step='0.01' required>");
+                        sb.append("<button class='btn'>保存</button> ");
+                        sb.append("<button type='button' class='btn' style='background:#999' onclick=\"document.getElementById('editBox').style.display='none'\">取消</button>");
+                        sb.append("</form></div>");
+                        sb.append("<script>function editRow(g,p){var b=document.getElementById('editBox');b.style.display='block';document.getElementById('eOld').value=g;document.getElementById('eName').value=g;document.getElementById('ePrice').value=p;b.scrollIntoView()}</script>");
+                    }
+                    rs3.close(); ps3.close();
+                } finally { conn3.close(); }
+            }
+        }
+        sb.append("</section>");
+
+        // === 四、特殊消费 ===
+        sb.append("<section class='query-section'><h3>特殊消费 (固定消费)</h3>");
+        Connection conn4 = One.getConn();
+        if (conn4 != null) {
+            try {
+                PreparedStatement ps4 = One.getPreparedStmt(conn4,
+                    "SELECT date, goods, price FROM " + table + " WHERE num_1=2 ORDER BY date");
+                ResultSet rs4 = ps4.executeQuery();
+                if (!rs4.isBeforeFirst()) {
+                    sb.append("<p>暂无特殊消费记录。</p>");
+                } else {
+                    sb.append("<table><tr><th>日期</th><th>商品</th><th>价格</th></tr>");
+                    while (rs4.next()) {
+                        sb.append("<tr><td>").append(rs4.getInt(1)).append("日</td>");
+                        sb.append("<td>").append(esc(rs4.getString(2))).append("</td>");
+                        sb.append("<td>¥").append(String.format("%.2f", rs4.getDouble(3))).append("</td></tr>");
+                    }
+                    sb.append("</table>");
+                }
+                rs4.close(); ps4.close();
+            } finally { conn4.close(); }
+        }
+        sb.append("</section>");
+
+        return page("消费查询", sb.toString());
     }
 
     // ==================== 折线图 ====================
@@ -265,11 +391,18 @@ public class WebServer {
     private static void handleDetailPost(HttpExchange ex) throws Exception {
         Map<String, String> f = parseForm(ex);
         String action = f.get("action");
-        String table = getMonthTable();
         int day = Integer.parseInt(f.get("day"));
 
+        // 从query string取月份
+        int month = Date_time.getMonth();
+        String q = ex.getRequestURI().getQuery();
+        if (q != null) {
+            try { month = Integer.parseInt(parseQuery(q).get("month")); } catch (Exception ignored) {}
+        }
+        String table = String.format("table_%02d", month);
+
         Connection conn = One.getConn();
-        if (conn == null) { redirect(ex, "/detail?day=" + day); return; }
+        if (conn == null) { redirect(ex, "/query?month=" + month + "&day=" + day); return; }
         try {
             if ("delete".equals(action)) {
                 PreparedStatement ps = One.getPreparedStmt(conn,
@@ -292,7 +425,7 @@ public class WebServer {
             e.printStackTrace();
         }
         conn.close();
-        redirect(ex, "/detail?day=" + day);
+        redirect(ex, "/query?month=" + month + "&day=" + day);
     }
 
     // ==================== 特殊消费 ====================
@@ -340,12 +473,21 @@ public class WebServer {
         StringBuilder sb = new StringBuilder();
         sb.append("<h1>消费记录系统</h1>");
         sb.append("<p class='hint'>当前月份表: ").append(t).append(" | 日期: ").append(Date_time.getDay()).append("日</p>");
-        sb.append("<div class='nav-grid'>");
-        sb.append(card("/save", "存入消费", "记录日常或固定消费", 0));
-        sb.append(card("/query", "总消费查询", "查看总消费与日均消费", 1));
-        sb.append(card("/chart", "消费折线图", "生成每日消费趋势图", 2));
-        sb.append(card("/detail", "日消费明细", "查询/编辑/删除指定日记录", 3));
-        sb.append(card("/special", "特殊消费", "查看固定消费记录", 4));
+        sb.append("<div class='hero-cards'>");
+        // 卡片一：存入消费
+        sb.append("<a href='/save' class='hero-link' style='--i:0'>");
+        sb.append("<div class='hero-card hero-card-save'>");
+        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><circle cx='12' cy='12' r='10'/><path d='M12 8v8M8 12h8'/></svg></div>");
+        sb.append("<div class='hero-body'><h2>存入消费</h2><p>记录日常消费或固定消费，按日期存入当月表中</p></div>");
+        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
+        sb.append("</div></a>");
+        // 卡片二：消费查询
+        sb.append("<a href='/query' class='hero-link' style='--i:1'>");
+        sb.append("<div class='hero-card hero-card-query'>");
+        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/></svg></div>");
+        sb.append("<div class='hero-body'><h2>消费查询</h2><p>月度统计 · 日均消费 · 折线图 · 日明细 · 特殊消费</p></div>");
+        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
+        sb.append("</div></a>");
         sb.append("</div>");
         return page("主菜单", sb.toString());
     }
@@ -370,7 +512,15 @@ public class WebServer {
     // ==================== HTML 模板 ====================
 
     private static String page(String title, String body) {
-        return pageRaw(title, nav() + body);
+        return pageRaw(title,
+            "<header><div class='top-bar'>" +
+            "<a href='/main' class='back-btn' title='返回首页'>" +
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='18' height='18'>" +
+            "<path d='M19 12H5M12 19l-7-7 7-7'/></svg>" +
+            "<span>首页</span></a>" +
+            "<div class='top-bar-spacer'></div>" +
+            themeToggle() +
+            "</div></header>" + body);
     }
 
     private static String pageRaw(String title, String body) {
@@ -379,10 +529,6 @@ public class WebServer {
             "<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();" +
             "function toggleTheme(){var e=document.documentElement;var t=e.getAttribute('data-theme')==='dark'?'light':'dark';e.setAttribute('data-theme',t);localStorage.setItem('theme',t);}</script>" +
             "</head><body><div class='container'>" + body + "</div></body></html>";
-    }
-
-    private static String nav() {
-        return "<nav><div class='nav-links'><a href='/main'>首页</a><a href='/save'>存入</a><a href='/query'>总消费</a><a href='/chart'>折线图</a><a href='/detail'>明细</a><a href='/special'>特殊</a></div>" + themeToggle() + "</nav>";
     }
 
     private static String themeToggle() {
@@ -442,17 +588,52 @@ public class WebServer {
             "transition:background .4s var(--ease-out),color .4s var(--ease-out)}" +
             ".container{max-width:860px;margin:0 auto;padding:var(--space-lg)}" +
 
-            // === 导航栏 ===
-            "nav{background:var(--surface);padding:0 var(--space-lg);border-radius:var(--radius-lg);" +
-            "margin-bottom:var(--space-xl);box-shadow:var(--shadow);display:flex;align-items:center;" +
-            "height:52px;transition:background .4s var(--ease-out),box-shadow .4s var(--ease-out);" +
-            "border:1px solid var(--border)}" +
-            ".nav-links{display:flex;gap:var(--space-xs)}" +
-            "nav a{color:var(--text2);text-decoration:none;padding:var(--space-sm) 14px;" +
-            "border-radius:var(--radius-sm);font-size:14px;font-weight:450;" +
-            "transition:all .2s var(--ease-out);position:relative}" +
-            "nav a:hover{background:var(--nav-hover);color:var(--accent)}" +
-            "nav a:active{transform:scale(.96)}" +
+            // === 顶部栏 ===
+            ".top-bar{display:flex;align-items:center;gap:var(--space-sm);" +
+            "padding:var(--space-sm) 0 var(--space-lg)}" +
+            ".top-bar-spacer{flex:1}" +
+            ".back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--text2);" +
+            "text-decoration:none;font-size:13px;font-weight:450;padding:6px 10px;" +
+            "border-radius:var(--radius-sm);transition:all .2s var(--ease-out)}" +
+            ".back-btn:hover{color:var(--accent);background:var(--nav-hover);text-decoration:none}" +
+            ".back-btn:active{transform:scale(.95)}" +
+
+            // === 首页大卡片 ===
+            ".hero-cards{display:flex;flex-direction:column;gap:var(--space-lg);margin-top:var(--space-xl)}" +
+            ".hero-link{text-decoration:none;display:block;" +
+"animation:cardIn .5s var(--ease-out) both;animation-delay:calc(var(--i,0)*120ms)}" +
+".hero-link:hover{text-decoration:none}" +
+            ".hero-card{display:flex;align-items:center;gap:var(--space-lg);" +
+            "background:var(--surface);padding:var(--space-xl) var(--space-xl);" +
+            "border-radius:var(--radius-lg);border:1px solid var(--border);" +
+            "box-shadow:var(--shadow);cursor:pointer;" +
+            "transition:all .35s var(--ease-in-out);position:relative;overflow:hidden}" +
+            ".hero-card::before{content:'';position:absolute;top:0;left:0;right:0;" +
+            "height:3px;border-radius:3px 3px 0 0;transition:height .35s var(--ease-in-out)}" +
+            ".hero-card-save::before{background:linear-gradient(90deg,var(--accent),#a78bfa)}" +
+            ".hero-card-query::before{background:linear-gradient(90deg,#f59e0b,#f97316)}" +
+            ".hero-card:hover{transform:translateY(-4px) scale(1.015);" +
+            "box-shadow:0 12px 40px rgba(0,0,0,.12);border-color:transparent}" +
+            ".hero-card:hover::before{height:5px}" +
+            ".hero-card:active{transform:translateY(-2px) scale(1.005)}" +
+            ".hero-icon{flex-shrink:0;width:64px;height:64px;display:flex;align-items:center;" +
+            "justify-content:center;border-radius:16px;transition:transform .35s var(--ease-in-out)}" +
+            ".hero-card-save .hero-icon{background:rgba(79,110,247,.1);color:var(--accent)}" +
+            ".hero-card-query .hero-icon{background:rgba(245,158,11,.1);color:#f59e0b}" +
+            ".hero-card:hover .hero-icon{transform:scale(1.1)}" +
+            ".hero-body{flex:1;min-width:0}" +
+            ".hero-body h2{font-size:clamp(18px,2.5vw,22px);font-weight:700;color:var(--text);" +
+            "margin-bottom:4px;letter-spacing:-.01em}" +
+            ".hero-body p{color:var(--text2);font-size:14px;line-height:1.5}" +
+            ".hero-arrow{flex-shrink:0;color:var(--text2);transition:all .35s var(--ease-in-out)}" +
+            ".hero-card:hover .hero-arrow{color:var(--accent);transform:translateX(4px)}" +
+
+            // === 查询分区 ===
+            ".query-section{margin-bottom:var(--space-2xl)}" +
+            ".query-section h3{font-size:16px;font-weight:650;color:var(--text);" +
+            "margin-bottom:var(--space-md);padding-bottom:var(--space-sm);" +
+            "border-bottom:2px solid var(--accent)}" +
+            ".stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-sm)}" +
 
             // === 主题开关 ===
             ".theme-switch{display:flex;align-items:center;gap:var(--space-sm);" +
