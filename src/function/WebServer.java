@@ -151,11 +151,11 @@ public class WebServer {
         StringBuilder sb = new StringBuilder();
         sb.append("<h2>消费查询</h2>");
 
-        // 月份选择器
-        sb.append("<form class='inline-form' action='/query' method='get'>");
-        sb.append("<input type='number' name='month' min='1' max='12' placeholder='月份(1-12)' value='").append(selMonth).append("' style='max-width:120px'>");
-        sb.append("<button type='submit' class='btn'>切换月份</button>");
-        sb.append("</form>");
+        sb.append("<div class='filter-bar'>");
+        for (int m = 1; m <= 12; m++) {
+            sb.append("<a href='?month=").append(m).append("' class='filter-pill").append(m == selMonth ? " active" : "").append("'>").append(m).append("月</a>");
+        }
+        sb.append("</div>");
         sb.append("<p class='hint'>当前查询: ").append(selMonth).append("月").append(selMonth == curMonth ? " (本月)" : "").append("</p>");
 
         // === 一、统计面板 ===
@@ -196,7 +196,7 @@ public class WebServer {
                 rs2.close(); ps2.close();
                 if (!days.isEmpty()) {
                     Line.drawLineChart(days, totals, table);
-                    sb.append("<img src='/chart-img?f=").append(table).append("_chart.png' class='chart-img' onerror=\"this.outerHTML='<p>图片加载失败</p>'\">");
+                    sb.append("<img src='/chart-img?f=").append(table).append("_chart.png' class='chart-img' alt='").append(selMonth).append("月每日消费折线图' onerror=\"this.outerHTML='<p>图片加载失败</p>'\">");
                 } else {
                     sb.append("<p>暂无数据。</p>");
                 }
@@ -208,7 +208,8 @@ public class WebServer {
         sb.append("<section class='query-section'><h3>日消费明细</h3>");
         sb.append("<form class='inline-form' action='/query' method='get'>");
         sb.append("<input type='hidden' name='month' value='").append(selMonth).append("'>");
-        sb.append("<input type='number' name='day' min='1' max='31' placeholder='输入日期(日)' value='").append(selDay > 0 ? selDay : "").append("' required>");
+        sb.append("<div class='input-wrap' style='flex:1'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>");
+        sb.append("<input type='number' name='day' min='1' max='31' placeholder='输入日期(日)' value='").append(selDay > 0 ? selDay : "").append("' required></div>");
         sb.append("<button type='submit' class='btn'>查询</button>");
         sb.append("</form>");
 
@@ -240,17 +241,17 @@ public class WebServer {
                         }
                         sb.append("</table>");
                         // 编辑表单
-                        sb.append("<div id='editBox' style='display:none;margin-top:16px;background:var(--surface);padding:20px;border-radius:8px;border:1px solid var(--border)'>");
+                        sb.append("<div id='editBox' class='edit-box' style='display:none'>");
                         sb.append("<h4>编辑记录</h4>");
                         sb.append("<form method='post' action='/query?month=").append(selMonth).append("&day=").append(selDay).append("'>");
                         sb.append("<input type='hidden' name='action' value='edit'>");
                         sb.append("<input type='hidden' name='day' value='").append(selDay).append("'>");
                         sb.append("<input type='hidden' name='oldGoods' id='eOld'>");
-                        sb.append("<label>商品名</label><input name='newGoods' id='eName' required>");
-                        sb.append("<label>价格</label><input name='newPrice' id='ePrice' type='number' step='0.01' required>");
-                        sb.append("<button class='btn'>保存</button> ");
-                        sb.append("<button type='button' class='btn' style='background:#999' onclick=\"document.getElementById('editBox').style.display='none'\">取消</button>");
-                        sb.append("</form></div>");
+                        sb.append("<div class='input-group'><label>商品名</label><div class='input-wrap'><input name='newGoods' id='eName' required></div></div>");
+                        sb.append("<div class='input-group'><label>价格</label><div class='input-wrap'><input name='newPrice' id='ePrice' type='number' step='0.01' required></div></div>");
+                        sb.append("<div style='display:flex;gap:8px;margin-top:12px'><button class='btn'>保存</button> ");
+                        sb.append("<button type='button' class='btn' style='background:var(--text2)' onclick=\"document.getElementById('editBox').style.display='none'\">取消</button>");
+                        sb.append("</div></form></div>");
                         sb.append("<script>function editRow(g,p){var b=document.getElementById('editBox');b.style.display='block';document.getElementById('eOld').value=g;document.getElementById('eName').value=g;document.getElementById('ePrice').value=p;b.scrollIntoView()}</script>");
                     }
                     rs3.close(); ps3.close();
@@ -461,7 +462,8 @@ public class WebServer {
         String err = error != null ? "<p class='error'>" + error + "</p>" : "";
         return pageRaw("登录 - 消费记录系统",
             "<div class='top-right-toggle'>" + themeToggle() + "</div>" +
-            "<div class='login-box'><h1>消费记录系统</h1>" + err +
+            "<div class='login-box'><h1 class='hero-title'>消费记录系统</h1>" +
+	            "<p class='hero-subtitle'>认真记录每一笔花销</p>" + err +
             "<form method='post' action='/login'>" +
             "<input type='password' name='password' placeholder='请输入密码' required autofocus>" +
             "<button type='submit' class='btn' style='width:100%'>登 录</button>" +
@@ -471,7 +473,10 @@ public class WebServer {
     private static String mainPage() {
         String t = getMonthTable();
         StringBuilder sb = new StringBuilder();
-        sb.append("<h1>消费记录系统</h1>");
+        sb.append("<div class='hero-title-wrap'>");
+        sb.append("<h1 class='hero-title'>消费记录系统</h1>");
+        sb.append("<p class='hero-subtitle'>认真记录每一笔花销</p>");
+        sb.append("</div>");
         sb.append("<p class='hint'>当前月份表: ").append(t).append(" | 日期: ").append(Date_time.getDay()).append("日</p>");
         sb.append("<div class='hero-cards'>");
         // 卡片一：存入消费
@@ -497,16 +502,23 @@ public class WebServer {
         int today = Date_time.getDay();
         return page("存入消费",
             "<h2>存入消费信息</h2>" + msgHtml +
+            "<div class='form-card'>" +
             "<form method='post' action='/save'>" +
-            "<div class='radio-group'>" +
-            "<label class='radio-label'><input type='radio' name='type' value='1' checked> 日常消费</label>" +
-            "<label class='radio-label'><input type='radio' name='type' value='2'> 固定消费</label>" +
+            "<div class='radio-pill-group'>" +
+            "<label class='radio-pill'><input type='radio' name='type' value='1' checked><span class='pill-text'>日常消费</span></label>" +
+            "<label class='radio-pill'><input type='radio' name='type' value='2'><span class='pill-text'>固定消费</span></label>" +
             "</div>" +
-            "<label>商品名称</label><input name='goods' required placeholder='例如：午餐'>" +
-            "<label>价格（元）</label><input name='price' type='number' step='0.01' required placeholder='例如：25.5'>" +
-            "<label>日期（日）</label><input name='day' type='number' min='1' max='31' value='" + today + "' placeholder='" + today + "'>" +
-            "<button type='submit' class='btn'>确认存入</button>" +
-            "</form>");
+            "<div class='input-group'><label>商品名称</label>" +
+            "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><path d='M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2'/><rect x='9' y='3' width='6' height='4' rx='1'/></svg>" +
+            "<input name='goods' required placeholder='例如：午餐'></div></div>" +
+            "<div class='input-group'><label>价格（元）</label>" +
+            "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><circle cx='12' cy='12' r='10'/><path d='M16 8h-4.5a2 2 0 100 4h1a2 2 0 010 4H8'/><path d='M12 6v2M12 16v2'/></svg>" +
+            "<input name='price' type='number' step='0.01' required placeholder='例如：25.5'></div></div>" +
+            "<div class='input-group'><label>日期（日）</label>" +
+            "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>" +
+            "<input name='day' type='number' min='1' max='31' value='" + today + "' placeholder='" + today + "'></div></div>" +
+            "<button type='submit' class='btn btn-lg btn-block'>确认存入</button>" +
+            "</form></div>");
     }
 
     // ==================== HTML 模板 ====================
@@ -528,7 +540,7 @@ public class WebServer {
             "<title>" + title + "</title><style>" + css() + "</style>" +
             "<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();" +
             "function toggleTheme(){var e=document.documentElement;var t=e.getAttribute('data-theme')==='dark'?'light':'dark';e.setAttribute('data-theme',t);localStorage.setItem('theme',t);}</script>" +
-            "</head><body><div class='container'>" + body + "</div></body></html>";
+            "</head><body><main class='container'>" + body + "</main></body></html>";
     }
 
     private static String themeToggle() {
@@ -555,7 +567,7 @@ public class WebServer {
             ":root,[data-theme='light']{" +
             "--space-xs:4px;--space-sm:8px;--space-md:16px;--space-lg:24px;--space-xl:32px;--space-2xl:48px;--space-3xl:64px;" +
             "--bg:#f2f3f8;--surface:#fff;--surface2:#f8f9fc;--elevated:#fff;" +
-            "--text:#1e1e2e;--text2:#6b6b80;--border:#e2e2ec;" +
+            "--text:#1e1e2e;--text2:#52526b;--border:#e2e2ec;" +
             "--accent:#4f6ef7;--accent-h:#3b54d4;--accent-light:rgba(79,110,247,.08);" +
             "--danger:#e74c3c;--danger-h:#c0392b;--danger-light:rgba(231,76,60,.08);" +
             "--success:#27ae60;--success-light:rgba(39,174,96,.08);" +
@@ -564,6 +576,9 @@ public class WebServer {
             "--shadow-lg:0 4px 16px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);" +
             "--input-bg:#fff;--input-bd:#d4d4e0;--toggle-bg:#c8cad8;" +
             "--hover:rgba(79,110,247,.04);--nav-hover:rgba(79,110,247,.06);" +
+            "--glow-top:rgba(79,110,247,.04);--glow-bottom:rgba(245,158,11,.03);" +
+            "--title-g1:#4f6ef7;--title-g2:#7c3aed;--title-g3:#d97706;" +
+            "--sub-g1:#6366f1;--sub-g2:#f59e0b;" +
             "--radius-sm:6px;--radius:10px;--radius-lg:14px;" +
             "--ease-out:cubic-bezier(.16,1,.3,1);--ease-in-out:cubic-bezier(.4,0,.2,1)}" +
 
@@ -574,18 +589,27 @@ public class WebServer {
             "--accent:#7b9bff;--accent-h:#9bb5ff;--accent-light:rgba(123,155,255,.1);" +
             "--danger:#ff6b6b;--danger-h:#e05555;--danger-light:rgba(255,107,107,.1);" +
             "--success:#5ddb6e;--success-light:rgba(93,219,110,.1);" +
-            "--shadow-sm:0 1px 2px rgba(0,0,0,.3);" +
-            "--shadow:0 1px 3px rgba(0,0,0,.4);" +
-            "--shadow-lg:0 4px 20px rgba(0,0,0,.5);" +
+            "--shadow-sm:0 1px 2px rgba(0,0,0,.25);" +
+            "--shadow:0 1px 4px rgba(0,0,0,.3);" +
+            "--shadow-lg:0 4px 16px rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.2);" +
             "--input-bg:#1a1a35;--input-bd:#32325a;--toggle-bg:#4f6ef7;" +
-            "--hover:rgba(123,155,255,.06);--nav-hover:rgba(123,155,255,.08)}" +
+            "--hover:rgba(123,155,255,.06);--nav-hover:rgba(123,155,255,.08);" +
+            "--glow-top:rgba(123,155,255,.06);--glow-bottom:rgba(139,92,246,.04);" +
+            "--title-g1:#a5b4fc;--title-g2:#c4b5fd;--title-g3:#fcd34d;" +
+            "--sub-g1:#93c5fd;--sub-g2:#c4b5fd}" +
 
             // === 基础 ===
             "*{margin:0;padding:0;box-sizing:border-box}" +
             "body{font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;" +
             "background:var(--bg);color:var(--text);min-height:100vh;" +
-            "font-weight:350;line-height:1.6;" +
+            "font-weight:350;line-height:1.6;position:relative;" +
             "transition:background .4s var(--ease-out),color .4s var(--ease-out)}" +
+            "body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;" +
+            "background:radial-gradient(ellipse 80% 60% at 50% 0%,var(--glow-top),transparent)," +
+            "radial-gradient(ellipse 60% 50% at 80% 100%,var(--glow-bottom),transparent)}" +
+            "body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;" +
+            "opacity:.035;background-image:url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\");background-size:200px 200px}" +
+            "main.container{position:relative;z-index:1}" +
             ".container{max-width:860px;margin:0 auto;padding:var(--space-lg)}" +
 
             // === 顶部栏 ===
@@ -610,8 +634,10 @@ public class WebServer {
             "transition:all .35s var(--ease-in-out);position:relative;overflow:hidden}" +
             ".hero-card::before{content:'';position:absolute;top:0;left:0;right:0;" +
             "height:3px;border-radius:3px 3px 0 0;transition:height .35s var(--ease-in-out)}" +
-            ".hero-card-save::before{background:linear-gradient(90deg,var(--accent),#a78bfa)}" +
-            ".hero-card-query::before{background:linear-gradient(90deg,#f59e0b,#f97316)}" +
+            ".hero-card-save::before{background:linear-gradient(90deg,var(--accent),#c4b5fd)}" +
+            "[data-theme='dark'] .hero-card-save::before{background:linear-gradient(90deg,#a5b4fc,var(--accent))}" +
+            ".hero-card-query::before{background:linear-gradient(90deg,#e8920a,#ea580c)}" +
+            "[data-theme='dark'] .hero-card-query::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}" +
             ".hero-card:hover{transform:translateY(-4px) scale(1.015);" +
             "box-shadow:0 12px 40px rgba(0,0,0,.12);border-color:transparent}" +
             ".hero-card:hover::before{height:5px}" +
@@ -622,7 +648,7 @@ public class WebServer {
             ".hero-card-query .hero-icon{background:rgba(245,158,11,.1);color:#f59e0b}" +
             ".hero-card:hover .hero-icon{transform:scale(1.1)}" +
             ".hero-body{flex:1;min-width:0}" +
-            ".hero-body h2{font-size:clamp(18px,2.5vw,22px);font-weight:700;color:var(--text);" +
+            ".hero-body h2{font-size:clamp(18px,2.5vw,22px);font-weight:700;color:var(--text);border-left:none;padding-left:0;" +
             "margin-bottom:4px;letter-spacing:-.01em}" +
             ".hero-body p{color:var(--text2);font-size:14px;line-height:1.5}" +
             ".hero-arrow{flex-shrink:0;color:var(--text2);transition:all .35s var(--ease-in-out)}" +
@@ -670,7 +696,7 @@ public class WebServer {
             ".login-box{max-width:400px;margin:80px auto;background:var(--surface);" +
             "padding:var(--space-2xl) var(--space-xl);border-radius:var(--radius-lg);" +
             "box-shadow:var(--shadow-lg);text-align:center;border:1px solid var(--border)}" +
-            ".login-box h1{font-size:clamp(20px,3vw,24px);margin-bottom:var(--space-xl);" +
+            ".login-box h1{margin-bottom:var(--space-xl)}" +
             "color:var(--text);font-weight:700;letter-spacing:-.02em}" +
 
             // === 表单 ===
@@ -736,10 +762,72 @@ public class WebServer {
             "transition:color .2s var(--ease-out)}" +
             ".radio-label:hover{color:var(--accent)}" +
             ".radio-label input[type=radio]{width:auto;margin-bottom:0;accent-color:var(--accent)}" +
+            // === 表单卡片 ===
+            ".form-card{max-width:560px;margin:var(--space-lg) auto;background:var(--surface);" +
+            "padding:var(--space-2xl) var(--space-xl);border-radius:var(--radius-lg);" +
+            "border:1px solid var(--border);box-shadow:var(--shadow-lg)}" +
+            ".form-card form{display:flex;flex-direction:column;gap:var(--space-lg)}" +
+            // === 药丸单选 ===
+            ".radio-pill-group{display:flex;gap:var(--space-sm);margin-bottom:var(--space-sm)}" +
+            ".radio-pill{flex:1;position:relative;cursor:pointer}" +
+            ".radio-pill input{position:absolute;opacity:0;pointer-events:none}" +
+            ".radio-pill .pill-text{display:block;text-align:center;padding:12px 20px;" +
+            "border-radius:var(--radius);border:2px solid var(--border);background:var(--surface2);" +
+            "color:var(--text2);font-weight:500;font-size:14px;transition:all .25s var(--ease-out)}" +
+            ".radio-pill input:checked+.pill-text{border-color:var(--accent);" +
+            "background:var(--accent-light);color:var(--accent);font-weight:600;" +
+            "box-shadow:0 0 0 3px var(--accent-light)}" +
+            ".radio-pill:hover .pill-text{border-color:var(--accent)}" +
+            // === 输入组 ===
+            ".input-group{display:flex;flex-direction:column;gap:var(--space-xs)}" +
+            ".input-group label{font-size:13px;font-weight:550;color:var(--text2);" +
+            "margin-bottom:0;text-transform:uppercase;letter-spacing:.06em}" +
+            ".input-wrap{position:relative;display:flex;align-items:center}" +
+            ".input-wrap .input-icon{position:absolute;left:14px;color:var(--text2);" +
+            "pointer-events:none;transition:color .2s var(--ease-out)}" +
+            ".input-wrap input{padding:13px 14px 13px 42px;font-size:15px;width:100%;border:1.5px solid var(--input-bd);" +
+            "border-radius:var(--radius);background:var(--input-bg);color:var(--text);" +
+            "font-family:inherit;outline:none;transition:all .25s var(--ease-out);margin-bottom:0}" +
+            ".input-wrap input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-light)}" +
+            "" +
+            ".input-wrap:focus-within .input-icon{color:var(--accent)}" +
+            // === 大按钮 ===
+            ".btn-lg{padding:14px 32px;font-size:16px;border-radius:var(--radius);font-weight:600}" +
+            ".btn-block{width:100%;text-align:center}" +
+            // === 月份筛选条 ===
+            ".filter-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-md)}" +
+            ".filter-pill{display:inline-block;padding:8px 16px;border-radius:20px;" +
+            "border:1.5px solid var(--border);color:var(--text2);text-decoration:none;" +
+            "font-size:13px;font-weight:500;transition:all .2s var(--ease-out);" +
+            "background:var(--surface)}" +
+            ".filter-pill:hover{border-color:var(--accent);color:var(--accent);" +
+            "background:var(--accent-light);text-decoration:none}" +
+            ".filter-pill.active{background:var(--accent);color:#fff;" +
+            "border-color:var(--accent);font-weight:600;box-shadow:0 2px 8px rgba(79,110,247,.3)}" +
+            // === 编辑弹窗 ===
+            ".edit-box{margin-top:var(--space-lg);background:var(--surface);" +
+            "padding:var(--space-xl);border-radius:var(--radius-lg);" +
+            "border:1px solid var(--border);box-shadow:var(--shadow-lg)}" +
+            ".edit-box h4{font-size:15px;font-weight:650;margin-bottom:var(--space-lg);" +
+            "color:var(--text)}" +
+            // === 艺术标题 ===
+            ".hero-title-wrap{text-align:center;padding:var(--space-2xl) 0 var(--space-lg)}" +
+            ".hero-title{font-size:clamp(32px,5vw,52px);font-weight:800;letter-spacing:-.03em;" +
+            "line-height:1.15;margin-bottom:var(--space-sm);text-align:center;" +
+            "background:linear-gradient(135deg,var(--title-g1),var(--title-g2),var(--title-g3));" +
+            "-webkit-background-clip:text;-webkit-text-fill-color:transparent;" +
+            "background-clip:text;animation:titleShimmer 6s ease-in-out infinite;background-size:200% 200%}" +
+            ".hero-subtitle{font-size:clamp(14px,1.8vw,17px);font-weight:400;text-align:center;" +
+            "letter-spacing:.08em;margin-bottom:var(--space-sm);" +
+            "background:linear-gradient(90deg,var(--sub-g1),var(--sub-g2));" +
+            "-webkit-background-clip:text;-webkit-text-fill-color:transparent;" +
+            "background-clip:text}" +
+            "@keyframes titleShimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}" +
             "h1{font-size:clamp(22px,3vw,28px);margin-bottom:var(--space-sm);" +
             "font-weight:700;letter-spacing:-.02em}" +
             "h2{font-size:clamp(17px,2.5vw,21px);margin-bottom:var(--space-md);" +
-            "font-weight:650;letter-spacing:-.01em}" +
+            "font-weight:650;letter-spacing:-.01em;position:relative;padding-left:14px;" +
+            "border-left:3px solid var(--accent)}" +
             "a{color:var(--accent);text-decoration:none;transition:color .2s var(--ease-out)}" +
             "a:hover{text-decoration:underline}" +
 
@@ -753,8 +841,25 @@ public class WebServer {
             "::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}" +
             "::-webkit-scrollbar-thumb:hover{background:var(--text2)}" +
 
-            // === 容器查询 ===
-            "@container(inline-size){.nav-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}}";
+            // === 响应式 ===
+            "@media(max-width:768px){" +
+            ".container{padding:var(--space-md)}" +
+            ".stat-row{grid-template-columns:1fr 1fr}" +
+            ".hero-card{padding:var(--space-lg);gap:var(--space-md)}" +
+            ".hero-icon{width:48px;height:48px}" +
+            ".hero-icon svg{width:28px;height:28px}" +
+            ".hero-body h2{font-size:16px}" +
+            ".top-bar{padding:var(--space-sm) 0 var(--space-md)}}" +
+            "@media(max-width:480px){" +
+            ".container{padding:var(--space-sm)}" +
+            ".stat-row{grid-template-columns:1fr}" +
+            ".hero-card{flex-direction:column;text-align:center}" +
+            ".hero-arrow{display:none}" +
+            ".inline-form{flex-direction:column}" +
+            ".query-section{margin-bottom:var(--space-xl)}" +
+            ".form-card{padding:var(--space-lg) var(--space-md);margin:var(--space-md) 0}" +
+            ".radio-pill-group{flex-direction:column}" +
+            "table{font-size:13px}th,td{padding:8px 10px}}";
     }
 
     // ==================== 工具方法 ====================
