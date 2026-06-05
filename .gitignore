@@ -1,0 +1,21 @@
+# === IDEA ===
+.idea/
+*.iml
+out/
+
+# === Java ===
+*.class
+*.jar
+*.war
+target/
+
+# === 数据库凭证（含密码不上传） ===
+src/function/One.java
+
+# === 生成的图表图片 ===
+The_Pic/
+
+# === 系统文件 ===
+.DS_Store
+Thumbs.db
+desktop.ini
