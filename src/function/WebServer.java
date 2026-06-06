@@ -138,7 +138,7 @@ public class WebServer {
         // 解析月份参数，默认当前月
         int curMonth = Date_time.getMonth();
         int selMonth = curMonth;
-        int selDay = -1;
+        int selDay = Date_time.getDay();
         String q = ex.getRequestURI().getQuery();
         if (q != null) {
             Map<String, String> params = parseQuery(q);
@@ -209,7 +209,7 @@ public class WebServer {
         sb.append("<form class='inline-form' action='/query' method='get'>");
         sb.append("<input type='hidden' name='month' value='").append(selMonth).append("'>");
         sb.append("<div class='input-wrap' style='flex:1'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>");
-        sb.append("<input type='number' name='day' min='1' max='31' placeholder='输入日期(日)' value='").append(selDay > 0 ? selDay : "").append("' required></div>");
+        sb.append("<input type='number' name='day' min='1' max='31' placeholder='输入日期(日)' value='").append(selDay > 0 ? selDay : Date_time.getDay()).append("' required></div>");
         sb.append("<button type='submit' class='btn'>查询</button>");
         sb.append("</form>");
 
