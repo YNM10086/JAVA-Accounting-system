@@ -67,6 +67,7 @@ public class WebServer {
                 case "/main"      -> html(ex, mainPage());
                 case "/save"      -> { if ("POST".equals(method)) handleSavePost(ex); else html(ex, savePage(null)); }
                 case "/query"     -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
+                case "/budget"    -> html(ex, budgetPage());
                 case "/chart-img" -> serveChart(ex);
                 default           -> redirect(ex, "/main");
             }
@@ -493,8 +494,129 @@ public class WebServer {
         sb.append("<div class='hero-body'><h2>消费查询</h2><p>月度统计 · 日均消费 · 折线图 · 日明细 · 特殊消费</p></div>");
         sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
         sb.append("</div></a>");
+        // 卡片三：消费管控
+        sb.append("<a href='/budget' class='hero-link' style='--i:2'>");
+        sb.append("<div class='hero-card hero-card-budget'>");
+        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2'/><circle cx='12' cy='12' r='7'/><path d='M12 9v3l2 2'/></svg></div>");
+        sb.append("<div class='hero-body'><h2>消费管控</h2><p>预算监控，智慧理财每一笔支出</p></div>");
+        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
+        sb.append("</div></a>");
         sb.append("</div>");
+        sb.append("<script src='/static/gsap.min.js'></script>");
+        sb.append("<script>gsap.from('.hero-card',{y:60,opacity:0,scale:.9,duration:.8,ease:'elastic.out(1,.6)',stagger:.15});</script>");
         return page("主菜单", sb.toString());
+    }
+
+    // ==================== 消费管控 ====================
+
+    /** 预算：每月固定预算 1500 元 */
+    private static final double MONTHLY_BUDGET = 1500;
+
+    private static String budgetPage() {
+        String table = getMonthTable();
+        int today = Date_time.getDay();
+        int remainingDays = Date_time.getRemainingDays();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<h2>消费管控</h2>");
+        sb.append("<p class='hint'>月预算 ¥").append(String.format("%.0f", MONTHLY_BUDGET))
+            .append(" | 今日: ").append(today).append("日 | 本月剩余: ").append(remainingDays).append("天</p>");
+
+        // === 数据查询 ===
+        double totalSpent = 0;
+        double dailyAvg = 0;
+        Connection conn = One.getConn();
+        if (conn != null) {
+            try {
+                PreparedStatement ps = One.getPreparedStmt(conn,
+                    "SELECT SUM(price) FROM " + table);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next() && rs.getObject(1) != null) totalSpent = rs.getDouble(1);
+                rs.close();
+
+                ps = One.getPreparedStmt(conn,
+                    "SELECT COALESCE(SUM(CASE WHEN num_1=1 THEN price END)/" +
+                    "NULLIF(COUNT(DISTINCT CASE WHEN num_1=1 THEN date END),0),0) FROM " + table);
+                rs = ps.executeQuery();
+                if (rs.next()) dailyAvg = rs.getDouble(1);
+                rs.close(); ps.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally { try { conn.close(); } catch (Exception ignored) {} }
+        }
+
+        // === 计算 ===
+        double balance = MONTHLY_BUDGET - totalSpent;
+        double dailyRemaining = balance > 0 ? balance / remainingDays : 0;
+        double deficit = totalSpent > MONTHLY_BUDGET ? totalSpent - MONTHLY_BUDGET : 0;
+
+        // === 统计面板 ===
+        sb.append("<section class='query-section'><h3>本月概览</h3>");
+        sb.append("<div class='stat-row'>");
+        sb.append("<div class='stat'><span>已消费</span><strong>¥").append(String.format("%.2f", totalSpent)).append("</strong></div>");
+        sb.append("<div class='stat'><span>日均消费</span><strong>¥").append(String.format("%.2f", dailyAvg)).append("</strong></div>");
+        sb.append("</div></section>");
+
+        // === 预算建议 ===
+        sb.append("<section class='query-section'><h3>预算建议</h3>");
+        sb.append("<div class='stat-row'>");
+
+        // 当前余额
+        sb.append("<div class='stat stat-budget");
+        if (balance < 0) sb.append(" stat-danger");
+        sb.append("'><span>当前余额</span><strong>");
+        if (balance < 0) {
+            sb.append("⚠ 已超出").append(String.format("¥%.2f", -balance));
+        } else {
+            sb.append("¥").append(String.format("%.2f", balance));
+        }
+        sb.append("</strong></div>");
+
+        // 赤字
+        sb.append("<div class='stat");
+        if (deficit > 0) sb.append(" stat-danger");
+        sb.append("'><span>赤字</span><strong>");
+        if (deficit > 0) {
+            sb.append("¥").append(String.format("%.2f", deficit));
+        } else {
+            sb.append("暂未赤字");
+        }
+        sb.append("</strong></div>");
+
+        // 建议每日消费
+        sb.append("<div class='stat'><span>建议每日消费</span><strong>");
+        if (balance > 0) {
+            sb.append("¥").append(String.format("%.2f", dailyRemaining));
+        } else {
+            sb.append("⚠ 已超出预算");
+        }
+        sb.append("</strong></div>");
+
+        sb.append("</div></section>");
+
+        // === 赤字概率 ===
+        sb.append("<section class='query-section'><h3>当月赤字概率</h3>");
+        double deficitProb = 0;
+        if (balance <= 0) {
+            deficitProb = 100;
+        } else if (dailyAvg > 0 && remainingDays > 0) {
+            double ratio = dailyAvg / (balance / remainingDays);
+            deficitProb = Math.min(99, Math.max(0, ratio * 50));
+        }
+        int probInt = (int) Math.round(deficitProb);
+        String probColor = probInt < 30 ? "#10b981" : probInt < 60 ? "#f59e0b" : "#ef4444";
+        sb.append("<div class='prob-card'>");
+        sb.append("<div class='prob-header'><span>基于当前消费趋势</span><strong style='color:").append(probColor).append("'>").append(probInt).append("%</strong></div>");
+        sb.append("<div class='prob-bar'><div class='prob-fill' style='width:").append(probInt).append("%;background:").append(probColor).append("'></div></div>");
+        sb.append("<div class='prob-detail'>").append(probEval(probInt)).append("</div></section>");
+
+        return page("消费管控", sb.toString());
+    }
+
+    private static String probEval(int prob) {
+        if (prob < 30) return "赤字率较低，继续保持当前消费习惯";
+        if (prob < 60) return "赤字率上升，需留意日常开支";
+        return "赤字率较高，请减少非必要消费";
     }
 
     private static String savePage(String msg) {
@@ -638,6 +760,8 @@ public class WebServer {
             "[data-theme='dark'] .hero-card-save::before{background:linear-gradient(90deg,#a5b4fc,var(--accent))}" +
             ".hero-card-query::before{background:linear-gradient(90deg,#e8920a,#ea580c)}" +
             "[data-theme='dark'] .hero-card-query::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}" +
+            ".hero-card-budget::before{background:linear-gradient(90deg,#10b981,#34d399)}" +
+            "[data-theme='dark'] .hero-card-budget::before{background:linear-gradient(90deg,#6ee7b7,#34d399)}" +
             ".hero-card:hover{transform:translateY(-4px) scale(1.015);" +
             "box-shadow:0 12px 40px rgba(0,0,0,.12);border-color:transparent}" +
             ".hero-card:hover::before{height:5px}" +
@@ -646,6 +770,7 @@ public class WebServer {
             "justify-content:center;border-radius:16px;transition:transform .35s var(--ease-in-out)}" +
             ".hero-card-save .hero-icon{background:rgba(79,110,247,.1);color:var(--accent)}" +
             ".hero-card-query .hero-icon{background:rgba(245,158,11,.1);color:#f59e0b}" +
+".hero-card-budget .hero-icon{background:rgba(16,185,129,.1);color:#10b981}" +
             ".hero-card:hover .hero-icon{transform:scale(1.1)}" +
             ".hero-body{flex:1;min-width:0}" +
             ".hero-body h2{font-size:clamp(18px,2.5vw,22px);font-weight:700;color:var(--text);border-left:none;padding-left:0;" +
@@ -742,6 +867,17 @@ public class WebServer {
             ".stat:hover{border-color:var(--accent);transform:translateX(4px)}" +
             ".stat span{color:var(--text2);font-size:13px;font-weight:450}" +
             ".stat strong{font-size:clamp(16px,2.5vw,20px);color:var(--accent);font-weight:650}" +
+            ".stat-danger{border-color:var(--danger)!important}" +
+            ".stat-danger strong{color:var(--danger)!important}" +
+
+            // === 赤字概率 ===
+            ".prob-card{background:var(--surface);padding:var(--space-lg);border-radius:var(--radius);" +
+            "border:1px solid var(--border);box-shadow:var(--shadow-sm)}" +
+            ".prob-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)}" +
+            ".prob-header span{color:var(--text2);font-size:14px}.prob-header strong{font-size:28px;font-weight:700}" +
+            ".prob-bar{height:10px;background:var(--bg);border-radius:5px;overflow:hidden;margin-bottom:var(--space-sm)}" +
+            ".prob-fill{height:100%;border-radius:5px;transition:width .6s var(--ease-out)}" +
+            ".prob-detail{color:var(--text);font-size:14px;font-weight:450;line-height:1.5;margin-top:var(--space-sm)}" +
 
             // === 导航网格 ===
             ".nav-grid{display:grid;" +
