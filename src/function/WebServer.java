@@ -51,8 +51,11 @@ public class WebServer {
         String method = ex.getRequestMethod();
         boolean loggedIn = VALID_TOKEN.equals(cookie(ex, COOKIE_NAME));
 
-        // 未登录只允许访问 /login 和 /
-        if (!loggedIn && !path.equals("/login") && !path.equals("/")) {
+        // 静态资源和导出不校验登录
+        boolean isPublic = path.startsWith("/static/") || path.equals("/export");
+
+        // 未登录只允许访问 /login、/、静态资源、导出
+        if (!loggedIn && !isPublic && !path.equals("/login") && !path.equals("/")) {
             redirect(ex, "/"); return;
         }
         // 已登录访问 / 跳到主页
@@ -68,8 +71,12 @@ public class WebServer {
                 case "/save"      -> { if ("POST".equals(method)) handleSavePost(ex); else html(ex, savePage(null)); }
                 case "/query"     -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
                 case "/budget"    -> html(ex, budgetPage());
+                case "/export"    -> handleExport(ex);
                 case "/chart-img" -> serveChart(ex);
-                default           -> redirect(ex, "/main");
+                default           -> {
+                    if (path.startsWith("/static/")) serveStatic(ex, path);
+                    else redirect(ex, "/main");
+                }
             }
         } catch (Exception e) {
             html(ex, errorPage(e.getMessage()));
@@ -150,7 +157,10 @@ public class WebServer {
         String table = String.format("table_%02d", selMonth);
 
         StringBuilder sb = new StringBuilder();
+        sb.append("<div class='page-header-row'>");
         sb.append("<h2>消费查询</h2>");
+        sb.append("<a href='/export?month=").append(selMonth).append("' class='btn btn-sm btn-export'>📥 导出Excel</a>");
+        sb.append("</div>");
 
         sb.append("<div class='filter-bar'>");
         for (int m = 1; m <= 12; m++) {
@@ -262,7 +272,7 @@ public class WebServer {
         sb.append("</section>");
 
         // === 四、特殊消费 ===
-        sb.append("<section class='query-section'><h3>特殊消费 (固定消费)</h3>");
+        sb.append("<section class='query-section'><h3>特殊消费</h3>");
         Connection conn4 = One.getConn();
         if (conn4 != null) {
             try {
@@ -322,6 +332,94 @@ public class WebServer {
         ex.getResponseHeaders().set("Content-Type", "image/png");
         ex.sendResponseHeaders(200, bytes.length);
         try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
+    }
+
+    private static void serveStatic(HttpExchange ex, String path) throws IOException {
+        File file = new File(path.substring(1));
+        if (!file.exists()) { ex.sendResponseHeaders(404, -1); return; }
+        byte[] bytes = Files.readAllBytes(file.toPath());
+        String ct = path.endsWith(".js") ? "application/javascript" :
+            path.endsWith(".css") ? "text/css" : "application/octet-stream";
+        ex.getResponseHeaders().set("Content-Type", ct);
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
+    }
+
+    // ==================== Excel 导出 ====================
+
+    private static void handleExport(HttpExchange ex) {
+        int month = Date_time.getMonth();
+        String q = ex.getRequestURI().getQuery();
+        if (q != null) {
+            try { month = Integer.parseInt(parseQuery(q).get("month")); } catch (Exception ignored) {}
+        }
+        String table = String.format("table_%02d", month);
+
+        Connection conn = One.getConn();
+        if (conn == null) {
+            try { html(ex, errorPage("数据库连接失败")); } catch (Exception ignored) {}
+            return;
+        }
+
+        try {
+            StringBuilder html = new StringBuilder();
+            html.append("<html><head><meta charset='UTF-8'><style>");
+            html.append("table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 10px;font-size:12px}");
+            html.append("th{background:#e2e2ec;font-weight:bold;text-align:center}");
+            html.append(".price{text-align:right}.date{text-align:center}.gap{width:40px;border:none}");
+            html.append("h2{font-size:14px;margin:0 0 8px}");
+            html.append("</style></head><body>");
+            html.append("<h2>日常消费</h2>");
+            html.append("<table><tr><th>日期</th><th>商品名</th><th>价格</th></tr>");
+
+            PreparedStatement ps = One.getPreparedStmt(conn,
+                "SELECT date, goods, price FROM " + table + " WHERE num_1=1 ORDER BY date");
+            ResultSet rs = ps.executeQuery();
+            double dailyTotal = 0;
+            while (rs.next()) {
+                double p = rs.getDouble("price");
+                dailyTotal += p;
+                html.append("<tr><td class='date'>").append(rs.getInt("date")).append("日</td>");
+                html.append("<td>").append(esc(rs.getString("goods"))).append("</td>");
+                html.append("<td class='price'>¥").append(String.format("%.2f", p)).append("</td></tr>");
+            }
+            rs.close(); ps.close();
+            html.append("<tr style='font-weight:bold;background:#f0f0f0'><td colspan='2' style='text-align:right'>合计</td>");
+            html.append("<td class='price'>¥").append(String.format("%.2f", dailyTotal)).append("</td></tr>");
+
+            html.append("</table>");
+            html.append("<br><h2>特殊消费</h2>");
+            html.append("<table><tr><th>日期</th><th>商品名</th><th>价格</th></tr>");
+
+            ps = One.getPreparedStmt(conn,
+                "SELECT date, goods, price FROM " + table + " WHERE num_1=2 ORDER BY date");
+            rs = ps.executeQuery();
+            double fixedTotal = 0;
+            while (rs.next()) {
+                double p = rs.getDouble("price");
+                fixedTotal += p;
+                html.append("<tr><td class='date'>").append(rs.getInt("date")).append("日</td>");
+                html.append("<td>").append(esc(rs.getString("goods"))).append("</td>");
+                html.append("<td class='price'>¥").append(String.format("%.2f", p)).append("</td></tr>");
+            }
+            rs.close(); ps.close();
+            html.append("<tr style='font-weight:bold;background:#f0f0f0'><td colspan='2' style='text-align:right'>合计</td>");
+            html.append("<td class='price'>¥").append(String.format("%.2f", fixedTotal)).append("</td></tr>");
+            conn.close();
+
+            html.append("</table></body></html>");
+
+            byte[] bytes = html.toString().getBytes("UTF-8");
+            ex.getResponseHeaders().set("Content-Type", "application/vnd.ms-excel; charset=UTF-8");
+            String fn = new String((month + "月消费数据.xls").getBytes("UTF-8"), "ISO-8859-1");
+            ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + fn + "\"");
+            ex.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
+
+        } catch (Exception e) {
+            try { conn.close(); } catch (Exception ignored) {}
+            e.printStackTrace();
+        }
     }
 
     // ==================== 日消费明细 ====================
@@ -484,7 +582,7 @@ public class WebServer {
         sb.append("<a href='/save' class='hero-link' style='--i:0'>");
         sb.append("<div class='hero-card hero-card-save'>");
         sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><circle cx='12' cy='12' r='10'/><path d='M12 8v8M8 12h8'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>存入消费</h2><p>记录日常消费或固定消费，按日期存入当月表中</p></div>");
+        sb.append("<div class='hero-body'><h2>存入消费</h2><p>记录日常消费或特殊消费，按日期存入当月表中</p></div>");
         sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
         sb.append("</div></a>");
         // 卡片二：消费查询
@@ -502,8 +600,6 @@ public class WebServer {
         sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
         sb.append("</div></a>");
         sb.append("</div>");
-        sb.append("<script src='/static/gsap.min.js'></script>");
-        sb.append("<script>gsap.from('.hero-card',{y:60,opacity:0,scale:.9,duration:.8,ease:'elastic.out(1,.6)',stagger:.15});</script>");
         return page("主菜单", sb.toString());
     }
 
@@ -628,7 +724,7 @@ public class WebServer {
             "<form method='post' action='/save'>" +
             "<div class='radio-pill-group'>" +
             "<label class='radio-pill'><input type='radio' name='type' value='1' checked><span class='pill-text'>日常消费</span></label>" +
-            "<label class='radio-pill'><input type='radio' name='type' value='2'><span class='pill-text'>固定消费</span></label>" +
+            "<label class='radio-pill'><input type='radio' name='type' value='2'><span class='pill-text'>特殊消费</span></label>" +
             "</div>" +
             "<div class='input-group'><label>商品名称</label>" +
             "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><path d='M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2'/><rect x='9' y='3' width='6' height='4' rx='1'/></svg>" +
@@ -747,12 +843,12 @@ public class WebServer {
             // === 首页大卡片 ===
             ".hero-cards{display:flex;flex-direction:column;gap:var(--space-lg);margin-top:var(--space-xl)}" +
             ".hero-link{text-decoration:none;display:block;" +
-"animation:cardIn .5s var(--ease-out) both;animation-delay:calc(var(--i,0)*120ms)}" +
+"animation:cardIn .7s ease-out both;animation-delay:calc(var(--i,0)*100ms)}" +
 ".hero-link:hover{text-decoration:none}" +
             ".hero-card{display:flex;align-items:center;gap:var(--space-lg);" +
             "background:var(--surface);padding:var(--space-xl) var(--space-xl);" +
             "border-radius:var(--radius-lg);border:1px solid var(--border);" +
-            "box-shadow:var(--shadow);cursor:pointer;" +
+            "box-shadow:var(--shadow);cursor:pointer;min-height:120px;width:100%;box-sizing:border-box;" +
             "transition:all .35s var(--ease-in-out);position:relative;overflow:hidden}" +
             ".hero-card::before{content:'';position:absolute;top:0;left:0;right:0;" +
             "height:3px;border-radius:3px 3px 0 0;transition:height .35s var(--ease-in-out)}" +
@@ -814,7 +910,10 @@ public class WebServer {
             ".card p{color:var(--text2);font-size:13px;line-height:1.5}" +
             ".card-link{text-decoration:none;display:block}" +
             ".card-link:focus-visible .card{outline:2px solid var(--accent);outline-offset:2px}" +
-            "@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}" +
+            "@keyframes cardIn{0%{opacity:0;transform:translateY(40px) scale(.9)}" +
+"55%{opacity:1;transform:translateY(-8px) scale(1.025)}" +
+"75%{transform:translateY(2px) scale(.98)}" +
+"100%{opacity:1;transform:translateY(0) scale(1)}}" +
             ".card{animation:cardIn .5s var(--ease-out) both;animation-delay:calc(var(--i,0)*70ms)}" +
 
             // === 登录 ===
@@ -929,6 +1028,9 @@ public class WebServer {
             ".input-wrap:focus-within .input-icon{color:var(--accent)}" +
             // === 大按钮 ===
             ".btn-lg{padding:14px 32px;font-size:16px;border-radius:var(--radius);font-weight:600}" +
+            ".page-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);flex-wrap:wrap;gap:var(--space-sm)}" +
+            ".btn-export{background:var(--surface);color:var(--accent);border:1px solid var(--border);font-size:13px}" +
+            ".btn-export:hover{background:var(--accent);color:#fff;border-color:var(--accent)}" +
             ".btn-block{width:100%;text-align:center}" +
             // === 月份筛选条 ===
             ".filter-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-md)}" +

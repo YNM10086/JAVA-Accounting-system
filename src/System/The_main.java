@@ -321,22 +321,6 @@ public class The_main {
         }
     }
 
-    // ==================== 密码验证 ====================
-
-    private static boolean checkPassword() {
-        Scanner in = new Scanner(System.in);
-        System.out.println("===== 消费记录系统 =====");
-        for (int i = 0; i < 3; i++) {
-            System.out.print("请输入密码：");
-            String pwd = in.nextLine();
-            if ("274823137".equals(pwd)) return true;
-            int left = 2 - i;
-            if (left > 0) System.out.println("密码错误！剩余次数：" + left);
-        }
-        System.out.println("次数用尽，系统退出。");
-        return false;
-    }
-
     // ==================== 主入口 ====================
 
     public static void main(String[] args) {

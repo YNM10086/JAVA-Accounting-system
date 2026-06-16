@@ -92,7 +92,7 @@ public class Menu {
     public static int consumeTypeMenu() {
         System.out.println("请选择消费类型：");
         System.out.println("1. 日常消费");
-        System.out.println("2. 固定消费");
+        System.out.println("2. 特殊消费");
         System.out.print("请输入数字选择: ");
         if (in.hasNextInt()) {
             int n = in.nextInt();
