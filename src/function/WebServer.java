@@ -700,11 +700,21 @@ public class WebServer {
             deficitProb = Math.min(99, Math.max(0, ratio * 50));
         }
         int probInt = (int) Math.round(deficitProb);
-        String probColor = probInt < 30 ? "#10b981" : probInt < 60 ? "#f59e0b" : "#ef4444";
         sb.append("<div class='prob-card'>");
-        sb.append("<div class='prob-header'><span>基于当前消费趋势</span><strong style='color:").append(probColor).append("'>").append(probInt).append("%</strong></div>");
-        sb.append("<div class='prob-bar'><div class='prob-fill' style='width:").append(probInt).append("%;background:").append(probColor).append("'></div></div>");
+        sb.append("<div class='prob-header'><span>基于当前消费趋势</span><strong class='prob-num' data-target='").append(probInt).append("'>0%</strong></div>");
+        sb.append("<div class='prob-bar'><div class='prob-fill' data-target='").append(probInt).append("' style='width:0%'></div></div>");
         sb.append("<div class='prob-detail'>").append(probEval(probInt)).append("</div></section>");
+        // 赤字概率动画
+        sb.append("<script>");
+        sb.append("(function(){var b=document.querySelector('.prob-fill');");
+        sb.append("var n=document.querySelector('.prob-num');");
+        sb.append("var t=parseInt(b.getAttribute('data-target'));");
+        sb.append("var c=0;function a(){if(c>=t)return;c++;");
+        sb.append("var cl=c<30?'#10b981':c<60?'#f59e0b':'#ef4444';");
+        sb.append("b.style.width=c+'%';b.style.background=cl;");
+        sb.append("n.textContent=c+'%';n.style.color=cl;");
+        sb.append("var d=c<t*.7?12:28;setTimeout(a,d);}a();})();");
+        sb.append("</script>");
 
         return page("消费管控", sb.toString());
     }
