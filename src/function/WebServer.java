@@ -768,7 +768,23 @@ public class WebServer {
             "<title>" + title + "</title><style>" + css() + "</style>" +
             "<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();" +
             "function toggleTheme(){var e=document.documentElement;var t=e.getAttribute('data-theme')==='dark'?'light':'dark';e.setAttribute('data-theme',t);localStorage.setItem('theme',t);}</script>" +
-            "</head><body><main class='container'>" + body + "</main></body></html>";
+            "<style>.bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none}</style>" +
+            "</head><body><canvas class='bg-canvas' id='bgCanvas'></canvas><main class='container'>" + body + "</main>" +
+            "<script>!function(){var c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');" +
+            "var w,h;function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight}" +
+            "window.addEventListener('resize',resize);resize();" +
+            "var sq=[];var n=Math.min(20,w>800?25:12);" +
+            "var pal=['rgba(255,255,255,','rgba(200,210,255,','rgba(180,220,255,','rgba(220,200,255,'];" +
+            "function r(a,b){return Math.random()*(b-a)+a}" +
+            "for(var i=0;i<n;i++){sq.push({x:r(0,w),y:r(0,h),s:r(14,40),sp:r(.2,.6),op:r(.12,.25),c:pal[i%4],vx:r(-.08,.08)})}" +
+            "function draw(){var isLight=document.documentElement.getAttribute('data-theme')!=='dark';" +
+            "ctx.clearRect(0,0,w,h);if(isLight){requestAnimationFrame(draw);return}" +
+            "for(var i=0;i<sq.length;i++){var q=sq[i];q.y-=q.sp;q.x+=q.vx;" +
+            "var p=Math.min(1,q.y/h);var op=q.op*p;var sz=q.s*(.2+p*.8);" +
+            "if(q.y<-q.s*2){q.y=h+r(0,h*.3);q.x=r(0,w);q.s=r(14,40);q.sp=r(.2,.6);q.op=r(.12,.25)}" +
+            "if(sz>2){ctx.fillStyle=q.c+op.toFixed(3)+')';ctx.beginPath();ctx.arc(q.x,q.y,sz/2,0,Math.PI*2);ctx.fill()}}" +
+            "requestAnimationFrame(draw)}draw()}();</script>" +
+            "</body></html>";
     }
 
     private static String themeToggle() {
