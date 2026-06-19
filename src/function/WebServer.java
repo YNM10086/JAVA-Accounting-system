@@ -542,21 +542,36 @@ public class WebServer {
             "*{margin:0;padding:0;box-sizing:border-box}" +
             "body{width:100vw;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;" +
             "font-family:'Microsoft YaHei','PingFang SC',sans-serif;cursor:pointer;" +
-            "transition:opacity .6s ease-out}" +
+            "transition:opacity .6s ease-out;flex-direction:column}" +
             ".splash-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-2;transition:opacity 1.5s ease-in}" +
-            ".greeting{font-size:clamp(42px,15vw,120px);font-weight:800;letter-spacing:.04em;" +
-            "opacity:0;transform:scale(.8);animation:inAnim 1.2s cubic-bezier(.22,1,.36,1) forwards}" +
+            ".greeting{font-size:clamp(42px,15vw,120px);font-weight:800;letter-spacing:normal;" +
+            "opacity:0;transform:scale(.8);animation:inAnim 1.2s cubic-bezier(.22,1,.36,1) forwards;" +
+            "text-shadow:0 2px 12px rgba(0,0,0,.12),0 6px 24px rgba(0,0,0,.08),0 12px 48px rgba(0,0,0,.05);" +
+            "filter:drop-shadow(0 2px 8px rgba(0,0,0,.1))}" +
             "@keyframes inAnim{0%{opacity:0;transform:scale(.7) translateY(30px)}" +
             "100%{opacity:1;transform:scale(1) translateY(0)}}" +
-            ".sub{font-size:clamp(14px,3vw,22px);margin-top:clamp(12px,3vh,30px);opacity:0;" +
-            "font-weight:400;letter-spacing:.3em;" +
-            "background:linear-gradient(135deg,#bf953f,#fcf6ba,#b38728,#fbf5b7);" +
+            ".sub{font-size:clamp(16px,3.5vw,26px);margin-top:clamp(12px,3vh,25px);opacity:0;" +
+            "font-weight:600;letter-spacing:.35em;" +
+            "background:linear-gradient(135deg,#d4a017,#f5d76e,#8B6914,#f5d76e,#d4a017);" +
             "-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;" +
             "animation:subIn 1s .6s ease-out forwards}" +
-            "@keyframes subIn{0%{opacity:0;transform:translateY(10px)}100%{opacity:.7;transform:translateY(0)}}" +
+            "@keyframes subIn{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}" +
+            ".tl-wrap{width:min(92%,720px);margin-top:clamp(28px,6vh,60px);opacity:0;" +
+            "animation:subIn 1s 1s ease-out forwards}" +
+            ".tl-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;background:rgba(255,255,255,.12);padding:2px}" +
+            ".tl-seg{flex:1;border-radius:3px;transition:all .3s;position:relative}" +
+            ".tl-seg.active{transform:scaleY(1.5);border-radius:3px;z-index:1}" +
+            ".tl-seg.past{opacity:.55}" +
+            ".tl-labels{display:flex;margin-top:8px;font-size:11px;color:rgba(255,255,255,.65);gap:1px;font-weight:500}" +
+            ".tl-labels span{flex:1;text-align:center}" +
+            ".tl-labels span.active{color:#fff;font-weight:700;font-size:14px;text-shadow:0 0 8px rgba(255,255,255,.4)}" +
+            ".tl-periods{display:flex;margin-top:6px;gap:2px;flex-wrap:nowrap}" +
+            ".tl-p{flex:1;text-align:center;font-size:10px;letter-spacing:.5px;color:rgba(255,255,255,.5);" +
+            "padding:3px 0;border-radius:4px;font-weight:500}" +
+            ".tl-p.active{color:#fff;font-weight:700;font-size:12px;text-shadow:0 0 6px rgba(255,255,255,.3)}" +
             ".hint{position:fixed;bottom:clamp(20px,5vh,50px);left:50%;transform:translateX(-50%);" +
             "color:rgba(255,255,255,.5);font-size:13px;letter-spacing:.1em;opacity:0;" +
-            "animation:subIn 1s 1.2s ease-out forwards}" +
+            "animation:subIn 1s 1.4s ease-out forwards}" +
             ".wipe-overlay{position:fixed;top:50%;left:50%;width:200vmax;height:200vmax;" +
             "border-radius:50%;transform:translate(-50%,-50%) scale(0);z-index:100;pointer-events:none;}" +
             ".wipe-overlay.active{animation:wipeOut .7s cubic-bezier(.4,0,.2,1) forwards}" +
@@ -565,21 +580,36 @@ public class WebServer {
             "</style></head><body>" +
             "<div class='splash-bg' id='splashBg'></div>" +
             "<div class='wipe-overlay' id='wipeOverlay'></div>" +
-            "<div style='text-align:center;z-index:1;padding:20px'>" +
+            "<div style='text-align:center;z-index:1;padding:20px 20px 0'>" +
             "<div class='greeting' id='greeting'></div>" +
             "<div class='sub' id='subLine'>做自己的财务管家</div>" +
-            "</div>" +
+            "<div class='tl-wrap' id='tlWrap'></div></div>" +
             "<div class='hint'>点击任意处进入</div>" +
             "<script>" +
-            "(function(){var h=new Date().getHours();var bg,greet,sub;" +
-            "if(h>=6&&h<12){bg='linear-gradient(135deg,#fce4ec,#f8bbd0,#bbdefb)';greet='linear-gradient(135deg,#e91e63,#1565c0)';sub='早上好'}" +
-            "else if(h>=12&&h<18){bg='linear-gradient(135deg,#e0f7fa,#b2ebf2,#fff9c4)';greet='linear-gradient(135deg,#00bcd4,#ff9800)';sub='中午好'}" +
-            "else{bg='linear-gradient(135deg,#1a0a2e,#2d1b69,#0f0c29)';greet='linear-gradient(135deg,#c084fc,#818cf8,#f472b6)';sub='晚上好'}" +
-            "document.getElementById('splashBg').style.background=bg;" +
-            "var g=document.getElementById('greeting');g.textContent=sub;" +
-            "g.style.background=greet;g.style.webkitBackgroundClip='text';g.style.webkitTextFillColor='transparent';g.style.backgroundClip='text';" +
+            "(function(){var h=new Date().getHours();var m=new Date().getMinutes();" +
+            "var periods=[" +
+            "{t:'凌晨',h0:0,h1:5,bg:'linear-gradient(135deg,#0a0a1a,#1a1040,#0d0d2b)',gt:'linear-gradient(135deg,#818cf8,#c4b5fd)'}," +
+            "{t:'早上',h0:6,h1:8,bg:'linear-gradient(135deg,#ffecd2,#fcb69f,#a1c4fd)',gt:'linear-gradient(135deg,#f97316,#ec4899)'}," +
+            "{t:'上午',h0:9,h1:11,bg:'linear-gradient(135deg,#e0eafc,#cfdef3,#fffde7)',gt:'linear-gradient(135deg,#3b82f6,#06b6d4)'}," +
+            "{t:'中午',h0:12,h1:13,bg:'linear-gradient(135deg,#e0f7fa,#b2ebf2,#fff9c4)',gt:'linear-gradient(135deg,#00bcd4,#ff9800)'}," +
+            "{t:'下午',h0:14,h1:17,bg:'linear-gradient(135deg,#fef3c7,#fde68a,#fecaca)',gt:'linear-gradient(135deg,#f59e0b,#ef4444)'}," +
+            "{t:'晚上',h0:18,h1:20,bg:'linear-gradient(135deg,#1e1b4b,#312e81,#5b21b6)',gt:'linear-gradient(135deg,#a78bfa,#fbbf24)'}," +
+            "{t:'深夜',h0:21,h1:23,bg:'linear-gradient(135deg,#020024,#090979,#1a0040)',gt:'linear-gradient(135deg,#c084fc,#6366f1,#ec4899)'}];" +
+            "function getPeriod(h){for(var i=0;i<periods.length;i++){var p=periods[i];if(h>=p.h0&&h<=p.h1)return p}return periods[0]}" +
+            "var p=getPeriod(h);document.getElementById('splashBg').style.background=p.bg;" +
+            "var g=document.getElementById('greeting');g.textContent=p.t+'好';" +
+            "g.style.background=p.gt;g.style.webkitBackgroundClip='text';g.style.webkitTextFillColor='transparent';g.style.backgroundClip='text';" +
+            "var tl=document.getElementById('tlWrap');var segs=[],labels=[];" +
+            "var colors=['#4f46e5','#f97316','#3b82f6','#06b6d4','#f59e0b','#7c3aed','#312e81'];" +
+            "var plabels=['凌晨','早上','上午','中午','下午','晚上','深夜'];" +
+            "var bar='';for(var i=0;i<24;i++){var segClass='tl-seg'+(i===h?' active':'');" +
+            "var inP=0;for(var j=0;j<periods.length;j++){if(i>=periods[j].h0&&i<=periods[j].h1){inP=j;break}}" +
+            "bar+='<div class=\"'+segClass+'\" style=\"background:'+colors[inP]+'\"></div>'}" +
+            "var lbls='';for(var i=0;i<24;i++){lbls+='<span'+(i===h?' class=\"active\"':'')+'>'+(i%3===0?i:'')+'</span>'}" +
+            "var prds='';for(var j=0;j<periods.length;j++){prds+='<div'+(p===periods[j]?' class=\"tl-p active\"':' class=\"tl-p\"')+'>'+plabels[j]+'</div>'}" +
+            "tl.innerHTML='<div class=\"tl-bar\">'+bar+'</div><div class=\"tl-labels\">'+lbls+'</div><div class=\"tl-periods\">'+prds+'</div>';" +
             "document.addEventListener('click',function(){var overlay=document.getElementById('wipeOverlay');" +
-            "overlay.style.background=bg;overlay.classList.add('active');" +
+            "overlay.style.background=p.bg;overlay.classList.add('active');" +
             "setTimeout(function(){window.location.href='/splash-done'},700)" +
             "})})();" +
             "</script></body></html>";
