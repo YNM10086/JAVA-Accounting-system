@@ -556,7 +556,7 @@ public class WebServer {
             "-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;" +
             "animation:subIn 1s .6s ease-out forwards}" +
             "@keyframes subIn{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}" +
-            ".tl-wrap{width:min(92%,720px);margin-top:clamp(28px,6vh,60px);opacity:0;" +
+            ".tl-wrap{width:720px;max-width:92vw;margin-top:clamp(28px,6vh,60px);opacity:0;margin-left:auto;margin-right:auto;" +
             "animation:subIn 1s 1s ease-out forwards}" +
             ".tl-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;background:rgba(255,255,255,.12);padding:2px}" +
             ".tl-seg{flex:1;border-radius:3px;transition:all .3s;position:relative}" +
@@ -580,24 +580,24 @@ public class WebServer {
             "</style></head><body>" +
             "<div class='splash-bg' id='splashBg'></div>" +
             "<div class='wipe-overlay' id='wipeOverlay'></div>" +
-            "<div style='text-align:center;z-index:1;padding:20px 20px 0'>" +
+            "<div style='text-align:center;z-index:1;padding:20px 20px 0;width:100%;max-width:100vw;display:flex;flex-direction:column;align-items:center'>" +
             "<div class='greeting' id='greeting'></div>" +
             "<div class='sub' id='subLine'>做自己的财务管家</div>" +
             "<div class='tl-wrap' id='tlWrap'></div></div>" +
             "<div class='hint'>点击任意处进入</div>" +
             "<script>" +
-            "(function(){var h=new Date().getHours();var m=new Date().getMinutes();" +
+            "(function(){var params=new URLSearchParams(location.search);var h=parseInt(params.get('h'));if(isNaN(h)||h<0||h>23)h=new Date().getHours();var m=new Date().getMinutes();" +
             "var periods=[" +
-            "{t:'凌晨',h0:0,h1:5,bg:'linear-gradient(135deg,#0a0a1a,#1a1040,#0d0d2b)',gt:'linear-gradient(135deg,#818cf8,#c4b5fd)'}," +
-            "{t:'早上',h0:6,h1:8,bg:'linear-gradient(135deg,#ffecd2,#fcb69f,#a1c4fd)',gt:'linear-gradient(135deg,#f97316,#ec4899)'}," +
-            "{t:'上午',h0:9,h1:11,bg:'linear-gradient(135deg,#e0eafc,#cfdef3,#fffde7)',gt:'linear-gradient(135deg,#3b82f6,#06b6d4)'}," +
-            "{t:'中午',h0:12,h1:13,bg:'linear-gradient(135deg,#e0f7fa,#b2ebf2,#fff9c4)',gt:'linear-gradient(135deg,#00bcd4,#ff9800)'}," +
-            "{t:'下午',h0:14,h1:17,bg:'linear-gradient(135deg,#fef3c7,#fde68a,#fecaca)',gt:'linear-gradient(135deg,#f59e0b,#ef4444)'}," +
-            "{t:'晚上',h0:18,h1:20,bg:'linear-gradient(135deg,#1e1b4b,#312e81,#5b21b6)',gt:'linear-gradient(135deg,#a78bfa,#fbbf24)'}," +
-            "{t:'深夜',h0:21,h1:23,bg:'linear-gradient(135deg,#020024,#090979,#1a0040)',gt:'linear-gradient(135deg,#c084fc,#6366f1,#ec4899)'}];" +
+            "{t:'凌晨',m:'凌晨了，早点休息',h0:0,h1:5,bg:'linear-gradient(135deg,#0a0a1a,#1a1040,#0d0d2b)',gt:'linear-gradient(135deg,#818cf8,#c4b5fd)'}," +
+            "{t:'早上',m:'早上好',h0:6,h1:8,bg:'linear-gradient(135deg,#ffecd2,#fcb69f,#a1c4fd)',gt:'linear-gradient(135deg,#f97316,#ec4899)'}," +
+            "{t:'上午',m:'上午好',h0:9,h1:11,bg:'linear-gradient(135deg,#e0eafc,#cfdef3,#fffde7)',gt:'linear-gradient(135deg,#3b82f6,#06b6d4)'}," +
+            "{t:'中午',m:'中午好',h0:12,h1:13,bg:'linear-gradient(135deg,#e0f7fa,#b2ebf2,#fff9c4)',gt:'linear-gradient(135deg,#00bcd4,#ff9800)'}," +
+            "{t:'下午',m:'下午好',h0:14,h1:17,bg:'linear-gradient(135deg,#fef3c7,#fde68a,#fecaca)',gt:'linear-gradient(135deg,#f59e0b,#ef4444)'}," +
+            "{t:'晚上',m:'晚上好',h0:18,h1:20,bg:'linear-gradient(135deg,#1e1b4b,#312e81,#5b21b6)',gt:'linear-gradient(135deg,#a78bfa,#fbbf24)'}," +
+            "{t:'深夜',m:'深夜了，注意休息',h0:21,h1:23,bg:'linear-gradient(135deg,#020024,#090979,#1a0040)',gt:'linear-gradient(135deg,#c084fc,#6366f1,#ec4899)'}];" +
             "function getPeriod(h){for(var i=0;i<periods.length;i++){var p=periods[i];if(h>=p.h0&&h<=p.h1)return p}return periods[0]}" +
             "var p=getPeriod(h);document.getElementById('splashBg').style.background=p.bg;" +
-            "var g=document.getElementById('greeting');g.textContent=p.t+'好';" +
+            "var g=document.getElementById('greeting');g.textContent=p.m;" +
             "g.style.background=p.gt;g.style.webkitBackgroundClip='text';g.style.webkitTextFillColor='transparent';g.style.backgroundClip='text';" +
             "var tl=document.getElementById('tlWrap');var segs=[],labels=[];" +
             "var colors=['#4f46e5','#f97316','#3b82f6','#06b6d4','#f59e0b','#7c3aed','#312e81'];" +
