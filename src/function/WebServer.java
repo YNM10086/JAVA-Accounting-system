@@ -11,8 +11,7 @@ import java.util.*;
 public class WebServer {
 
     private static final int[] PORTS = {8080, 8081, 8082, 9090};
-    private static final String COOKIE_NAME = "session";
-    private static final String VALID_TOKEN = "tok_274823137";
+    private static boolean splashPending = true;
 
     public static void start() throws Exception {
         HttpServer srv = null;
@@ -49,31 +48,21 @@ public class WebServer {
     private static void handle(HttpExchange ex) throws IOException {
         String path = ex.getRequestURI().getPath();
         String method = ex.getRequestMethod();
-        boolean loggedIn = VALID_TOKEN.equals(cookie(ex, COOKIE_NAME));
-
-        // 静态资源和导出不校验登录
-        boolean isPublic = path.startsWith("/static/") || path.equals("/export");
-
-        // 未登录只允许访问 /login、/、静态资源、导出
-        if (!loggedIn && !isPublic && !path.equals("/login") && !path.equals("/")) {
-            redirect(ex, "/"); return;
-        }
-        // 已登录访问 / 跳到主页
-        if (loggedIn && path.equals("/")) {
-            redirect(ex, "/main"); return;
-        }
 
         try {
             switch (path) {
-                case "/"          -> html(ex, loginPage(null));
-                case "/login"     -> handleLogin(ex);
-                case "/main"      -> html(ex, mainPage());
-                case "/save"      -> { if ("POST".equals(method)) handleSavePost(ex); else html(ex, savePage(null)); }
-                case "/query"     -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
-                case "/budget"    -> html(ex, budgetPage());
-                case "/export"    -> handleExport(ex);
-                case "/chart-img" -> serveChart(ex);
-                default           -> {
+                case "/"             -> {
+                    if (splashPending) html(ex, splashPage());
+                    else redirect(ex, "/main");
+                }
+                case "/splash-done"  -> { splashPending = false; redirect(ex, "/main"); }
+                case "/main"         -> html(ex, mainPage());
+                case "/save"         -> { if ("POST".equals(method)) handleSavePost(ex); else html(ex, savePage(null)); }
+                case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
+                case "/budget"       -> html(ex, budgetPage());
+                case "/export"       -> handleExport(ex);
+                case "/chart-img"    -> serveChart(ex);
+                default              -> {
                     if (path.startsWith("/static/")) serveStatic(ex, path);
                     else redirect(ex, "/main");
                 }
@@ -84,16 +73,6 @@ public class WebServer {
     }
 
     // ==================== 登录 ====================
-
-    private static void handleLogin(HttpExchange ex) throws IOException {
-        Map<String, String> form = parseForm(ex);
-        if ("274823137".equals(form.get("password"))) {
-            ex.getResponseHeaders().add("Set-Cookie", COOKIE_NAME + "=" + VALID_TOKEN + "; Path=/");
-            redirect(ex, "/main");
-        } else {
-            html(ex, loginPage("密码错误"));
-        }
-    }
 
     // ==================== 存入消费 ====================
 
@@ -557,17 +536,55 @@ public class WebServer {
 
     // ==================== HTML 页面组装 ====================
 
-    private static String loginPage(String error) {
-        String err = error != null ? "<p class='error'>" + error + "</p>" : "";
-        return pageRaw("登录 - 消费记录系统",
-            "<div class='top-right-toggle'>" + themeToggle() + "</div>" +
-            "<div class='login-box'><h1 class='hero-title'>消费记录系统</h1>" +
-	            "<p class='hero-subtitle'>认真记录每一笔花销</p>" + err +
-            "<form method='post' action='/login'>" +
-            "<input type='password' name='password' placeholder='请输入密码' required autofocus>" +
-            "<button type='submit' class='btn' style='width:100%'>登 录</button>" +
-            "</form></div>");
+    private static String splashPage() {
+        return "<!DOCTYPE html><html lang='zh'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>" +
+            "<title>消费记录系统</title><style>" +
+            "*{margin:0;padding:0;box-sizing:border-box}" +
+            "body{width:100vw;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;" +
+            "font-family:'Microsoft YaHei','PingFang SC',sans-serif;cursor:pointer;" +
+            "transition:opacity .6s ease-out}" +
+            ".splash-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-2;transition:opacity 1.5s ease-in}" +
+            ".greeting{font-size:clamp(42px,15vw,120px);font-weight:800;letter-spacing:.04em;" +
+            "opacity:0;transform:scale(.8);animation:inAnim 1.2s cubic-bezier(.22,1,.36,1) forwards}" +
+            "@keyframes inAnim{0%{opacity:0;transform:scale(.7) translateY(30px)}" +
+            "100%{opacity:1;transform:scale(1) translateY(0)}}" +
+            ".sub{font-size:clamp(14px,3vw,22px);margin-top:clamp(12px,3vh,30px);opacity:0;" +
+            "font-weight:400;letter-spacing:.3em;" +
+            "background:linear-gradient(135deg,#bf953f,#fcf6ba,#b38728,#fbf5b7);" +
+            "-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;" +
+            "animation:subIn 1s .6s ease-out forwards}" +
+            "@keyframes subIn{0%{opacity:0;transform:translateY(10px)}100%{opacity:.7;transform:translateY(0)}}" +
+            ".hint{position:fixed;bottom:clamp(20px,5vh,50px);left:50%;transform:translateX(-50%);" +
+            "color:rgba(255,255,255,.5);font-size:13px;letter-spacing:.1em;opacity:0;" +
+            "animation:subIn 1s 1.2s ease-out forwards}" +
+            ".wipe-overlay{position:fixed;top:50%;left:50%;width:200vmax;height:200vmax;" +
+            "border-radius:50%;transform:translate(-50%,-50%) scale(0);z-index:100;pointer-events:none;}" +
+            ".wipe-overlay.active{animation:wipeOut .7s cubic-bezier(.4,0,.2,1) forwards}" +
+            "@keyframes wipeOut{0%{transform:translate(-50%,-50%) scale(0)}" +
+            "50%{opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:.95}}" +
+            "</style></head><body>" +
+            "<div class='splash-bg' id='splashBg'></div>" +
+            "<div class='wipe-overlay' id='wipeOverlay'></div>" +
+            "<div style='text-align:center;z-index:1;padding:20px'>" +
+            "<div class='greeting' id='greeting'></div>" +
+            "<div class='sub' id='subLine'>做自己的财务管家</div>" +
+            "</div>" +
+            "<div class='hint'>点击任意处进入</div>" +
+            "<script>" +
+            "(function(){var h=new Date().getHours();var bg,greet,sub;" +
+            "if(h>=6&&h<12){bg='linear-gradient(135deg,#fce4ec,#f8bbd0,#bbdefb)';greet='linear-gradient(135deg,#e91e63,#1565c0)';sub='早上好'}" +
+            "else if(h>=12&&h<18){bg='linear-gradient(135deg,#e0f7fa,#b2ebf2,#fff9c4)';greet='linear-gradient(135deg,#00bcd4,#ff9800)';sub='中午好'}" +
+            "else{bg='linear-gradient(135deg,#1a0a2e,#2d1b69,#0f0c29)';greet='linear-gradient(135deg,#c084fc,#818cf8,#f472b6)';sub='晚上好'}" +
+            "document.getElementById('splashBg').style.background=bg;" +
+            "var g=document.getElementById('greeting');g.textContent=sub;" +
+            "g.style.background=greet;g.style.webkitBackgroundClip='text';g.style.webkitTextFillColor='transparent';g.style.backgroundClip='text';" +
+            "document.addEventListener('click',function(){var overlay=document.getElementById('wipeOverlay');" +
+            "overlay.style.background=bg;overlay.classList.add('active');" +
+            "setTimeout(function(){window.location.href='/splash-done'},700)" +
+            "})})();" +
+            "</script></body></html>";
     }
+
 
     private static String mainPage() {
         String t = getMonthTable();
@@ -773,16 +790,47 @@ public class WebServer {
             "<script>!function(){var c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');" +
             "var w,h;function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight}" +
             "window.addEventListener('resize',resize);resize();" +
-            "var sq=[];var n=Math.min(20,w>800?25:12);" +
-            "var pal=['rgba(255,255,255,','rgba(200,210,255,','rgba(180,220,255,','rgba(220,200,255,'];" +
+            "var sq=[];var n=Math.min(28,w>800?40:16);" +
+            "var dpal=[['rgba(255,255,255,','rgba(200,210,255,']," +
+            "['rgba(200,180,255,','rgba(160,140,230,']," +
+            "['rgba(180,220,255,','rgba(140,180,230,']," +
+            "['rgba(255,180,200,','rgba(220,130,170,']," +
+            "['rgba(180,255,220,','rgba(130,210,180,']];" +
             "function r(a,b){return Math.random()*(b-a)+a}" +
-            "for(var i=0;i<n;i++){sq.push({x:r(0,w),y:r(0,h),s:r(14,40),sp:r(.2,.6),op:r(.12,.25),c:pal[i%4],vx:r(-.08,.08)})}" +
-            "function draw(){var isLight=document.documentElement.getAttribute('data-theme')!=='dark';" +
-            "ctx.clearRect(0,0,w,h);if(isLight){requestAnimationFrame(draw);return}" +
-            "for(var i=0;i<sq.length;i++){var q=sq[i];q.y-=q.sp;q.x+=q.vx;" +
-            "var p=Math.min(1,q.y/h);var op=q.op*p;var sz=q.s*(.2+p*.8);" +
-            "if(q.y<-q.s*2){q.y=h+r(0,h*.3);q.x=r(0,w);q.s=r(14,40);q.sp=r(.2,.6);q.op=r(.12,.25)}" +
-            "if(sz>2){ctx.fillStyle=q.c+op.toFixed(3)+')';ctx.beginPath();ctx.arc(q.x,q.y,sz/2,0,Math.PI*2);ctx.fill()}}" +
+            "for(var i=0;i<n;i++){var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);" +
+            "sq.push({x:side+r(-20,20),y:r(0,h)," +
+            "s:r(20,50)+r(.4,1)*80,sp:r(.08,.15)+r(.2,.6),op:r(.08,.12)+r(.4,1)*.1," +
+            "ci:Math.floor(r(0,5)),vx:r(-.03,.03)})}" +
+            "var lb=[];var lm=Math.min(24,w>800?36:14);" +
+            "var lpal=[['rgba(0,188,212,','rgba(0,140,170,']," +
+            "['rgba(0,200,170,','rgba(0,155,130,']," +
+            "['rgba(139,195,74,','rgba(100,160,40,']," +
+            "['rgba(205,190,50,','rgba(165,150,30,']," +
+            "['rgba(255,183,77,','rgba(210,145,40,']];" +
+            "for(var i=0;i<lm;i++){var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);" +
+            "var depth=r(.4,1);lb.push({x:side+r(-20,20),y:r(0,h)," +
+            "s:r(20,50)+depth*90,sp:r(.08,.15)+depth*.35,op:r(.08,.12)+depth*.12," +
+            "ci:Math.floor(r(0,5)),vx:r(-.03,.03),depth:depth})}" +
+            "function draw(){ctx.clearRect(0,0,w,h);var isLight=document.documentElement.getAttribute('data-theme')!=='dark';" +
+            "if(isLight){for(var i=0;i<lb.length;i++){var b=lb[i];b.y-=b.sp;b.x+=b.vx;" +
+            "var p=Math.min(1,Math.max(0,b.y/h));var op=b.op*p;var sz=b.s*p;" +
+            "if(b.y<-b.s*2){b.y=h+r(0,h*.3);var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);b.x=side+r(-20,20);" +
+            "b.s=r(20,50)+r(.4,1)*90;b.sp=r(.08,.15)+r(.2,.7);b.op=r(.08,.12)+r(.4,1)*.12;b.ci=Math.floor(r(0,5))}" +
+            "if(sz>6){var grd=ctx.createRadialGradient(b.x-sz*.15,b.y-sz*.15,0,b.x,b.y,sz/2);" +
+            "var c1=b.ci;var c2=(b.ci+1)%5;" +
+            "grd.addColorStop(0,'rgba(255,255,255,'+(op*.5).toFixed(3)+')');" +
+            "grd.addColorStop(.5,lpal[c1][0]+(op*.8).toFixed(3)+')');" +
+            "grd.addColorStop(1,lpal[c2][1]+(op*.6).toFixed(3)+')');" +
+            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,sz/2,0,Math.PI*2);ctx.fill()}}}" +
+            "else{for(var i=0;i<sq.length;i++){var q=sq[i];q.y-=q.sp;q.x+=q.vx;" +
+            "var p=Math.min(1,Math.max(0,q.y/h));var op=q.op*p;var sz=q.s*p;" +
+            "if(q.y<-q.s*2){var side=q.x<w/2?r(10,w*0.3):r(w*0.7,w-10);q.x=side+r(-20,20);q.y=h+r(0,h*.3);" +
+            "q.s=r(20,50)+r(.4,1)*80;q.sp=r(.08,.15)+r(.2,.6);q.op=r(.08,.12)+r(.4,1)*.1;q.ci=Math.floor(r(0,5))}" +
+            "if(sz>4){var grd=ctx.createRadialGradient(q.x-sz*.15,q.y-sz*.15,0,q.x,q.y,sz/2);" +
+            "grd.addColorStop(0,'rgba(255,255,255,'+(op*.6).toFixed(3)+')');" +
+            "grd.addColorStop(.5,dpal[q.ci][0]+(op*.7).toFixed(3)+')');" +
+            "grd.addColorStop(1,dpal[q.ci][1]+(op*.5).toFixed(3)+')');" +
+            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(q.x,q.y,sz/2,0,Math.PI*2);ctx.fill()}}}" +
             "requestAnimationFrame(draw)}draw()}();</script>" +
             "</body></html>";
     }
