@@ -735,6 +735,18 @@ public class WebServer {
         }
         sb.append("</strong></div>");
 
+        // 预计超额
+        double projectedOvershoot = dailyAvg * remainingDays - balance;
+        sb.append("<div class='stat");
+        if (projectedOvershoot > 0) sb.append(" stat-danger");
+        sb.append("'><span>预计超额</span><strong>");
+        if (projectedOvershoot > 0) {
+            sb.append("¥").append(String.format("%.2f", projectedOvershoot));
+        } else {
+            sb.append("暂未超额");
+        }
+        sb.append("</strong></div>");
+
         sb.append("</div></section>");
 
         // === 赤字概率 ===
