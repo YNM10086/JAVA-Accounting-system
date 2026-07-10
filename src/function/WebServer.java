@@ -220,7 +220,7 @@ public class WebServer {
                             double p = rs3.getDouble(2);
                             int n1 = rs3.getInt(3);
                             sb.append("<tr><td>").append(esc(g)).append("</td><td>¥").append(String.format("%.2f", p))
-                                .append("</td><td>").append(n1 == 1 ? "日常" : "固定").append("</td><td>");
+                                .append("</td><td>").append(n1 == 1 ? "日常" : "特殊").append("</td><td>");
                             sb.append("<form method='post' action='/query?month=").append(selMonth).append("&day=").append(selDay).append("' style='display:inline' onsubmit=\"return confirm('确认删除 ").append(esc(g)).append("？')\">");
                             sb.append("<input type='hidden' name='action' value='delete'>");
                             sb.append("<input type='hidden' name='day' value='").append(selDay).append("'>");
@@ -434,7 +434,7 @@ public class WebServer {
                     double p = rs.getDouble(2);
                     int n1 = rs.getInt(3);
                     body.append("<tr><td>").append(esc(g)).append("</td><td>¥").append(String.format("%.2f", p))
-                        .append("</td><td>").append(n1 == 1 ? "日常" : "固定").append("</td><td>");
+                        .append("</td><td>").append(n1 == 1 ? "日常" : "特殊").append("</td><td>");
                     // 删除表单
                     body.append("<form method='post' action='/detail' style='display:inline' onsubmit=\"return confirm('确认删除 ").append(esc(g)).append("？')\">");
                     body.append("<input type='hidden' name='action' value='delete'>");
