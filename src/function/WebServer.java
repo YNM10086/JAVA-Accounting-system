@@ -22,11 +22,11 @@ public class WebServer {
                 usedPort = port;
                 break;
             } catch (BindException e) {
-                System.out.println("端口 " + port + " 被占用，尝试下一个...");
+                System.out.println("端口 " + port + " 被占用,尝试下一个...");
             }
         }
         if (srv == null) {
-            System.out.println("所有端口均被占用，请检查是否有已运行的实例！");
+            System.out.println("所有端口均被占用,请检查是否有已运行的实例！");
             return;
         }
 
@@ -37,7 +37,7 @@ public class WebServer {
         String url = "http://localhost:" + usedPort;
         System.out.println("====================================");
         System.out.println("Web服务器已启动: " + url);
-        System.out.println("如果浏览器未自动打开，请手动访问上述地址");
+        System.out.println("如果浏览器未自动打开,请手动访问上述地址");
         System.out.println("====================================");
 
         try { Desktop.getDesktop().browse(new URI(url)); } catch (Exception ignored) {}
@@ -57,7 +57,8 @@ public class WebServer {
                 }
                 case "/splash-done"  -> { splashPending = false; redirect(ex, "/main"); }
                 case "/main"         -> html(ex, mainPage());
-                case "/save"         -> { if ("POST".equals(method)) handleSavePost(ex); else html(ex, savePage(null)); }
+                case "/save"         -> { if ("POST".equals(method)) handleSavePost(ex, parseForm(ex)); else html(ex, savePage(null)); }
+                case "/income"       -> { if ("POST".equals(method)) handleIncomePost(ex, parseForm(ex)); else html(ex, incomePage()); }
                 case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
                 case "/budget"       -> html(ex, budgetPage());
                 case "/export"       -> handleExport(ex);
@@ -76,8 +77,7 @@ public class WebServer {
 
     // ==================== 存入消费 ====================
 
-    private static void handleSavePost(HttpExchange ex) throws Exception {
-        Map<String, String> f = parseForm(ex);
+    private static void handleSavePost(HttpExchange ex, Map<String, String> f) throws Exception {
         String goods = f.get("goods");
         String priceStr = f.get("price");
         String typeStr = f.get("type");
@@ -119,10 +119,67 @@ public class WebServer {
         }
     }
 
+    private static void handleIncomePost(HttpExchange ex, Map<String, String> f) throws Exception {
+        int month = Date_time.getMonth();
+        Connection conn = One.getConn();
+        if (conn == null) { redirect(ex, "/income"); return; }
+        try {
+            initTable(conn);
+            // 删除
+            if ("delete".equals(f.get("_action"))) {
+                int id = Integer.parseInt(f.get("id"));
+                PreparedStatement ps = One.getPreparedStmt(conn, "DELETE FROM income_records WHERE id = ?");
+                ps.setInt(1, id); ps.executeUpdate(); ps.close();
+            }
+            // 新增
+            else {
+                int day;
+                try { day = Integer.parseInt(f.get("date")); } catch (Exception e) { day = Date_time.getDay(); }
+                double amount;
+                try { amount = Double.parseDouble(f.get("amount")); } catch (Exception e) { redirect(ex, "/income"); conn.close(); return; }
+                String desc = f.get("description");
+                if (desc == null) desc = "";
+                PreparedStatement ps = One.getPreparedStmt(conn,
+                    "INSERT INTO income_records (month, date, amount, description) VALUES (?, ?, ?, ?)");
+                ps.setInt(1, month); ps.setInt(2, day); ps.setDouble(3, amount); ps.setString(4, desc.trim());
+                ps.executeUpdate(); ps.close();
+            }
+            conn.close();
+        } catch (Exception e) { try { conn.close(); } catch (Exception ignored) {} }
+        redirect(ex, "/income");
+    }
+
+    private static void initTable(Connection conn) {
+        try {
+            Statement st = conn.createStatement();
+            st.execute("CREATE TABLE IF NOT EXISTS income_records (id INT AUTO_INCREMENT PRIMARY KEY, month INT NOT NULL, date INT NOT NULL, amount DECIMAL(10,2) NOT NULL, description VARCHAR(200) DEFAULT '')");
+            st.close();
+        } catch (Exception e) { /* 表已存在则忽略 */ }
+    }
+
+    /** 读取当月总收入,无记录返回 1500 */
+    private static double getMonthlyIncome() {
+        int month = Date_time.getMonth();
+        Connection conn = One.getConn();
+        if (conn == null) return 1500;
+        try {
+            PreparedStatement ps = One.getPreparedStmt(conn,
+                "SELECT COALESCE(SUM(amount), 0) FROM income_records WHERE month = ?");
+            ps.setInt(1, month);
+            ResultSet rs = ps.executeQuery();
+            double income = rs.next() ? rs.getDouble(1) : 0;
+            rs.close(); ps.close(); conn.close();
+            return income > 0 ? income : 1500;
+        } catch (Exception e) {
+            try { conn.close(); } catch (Exception ignored) {}
+            return 1500;
+        }
+    }
+
     // ==================== 消费查询（融合总消费+折线图+明细+特殊） ====================
 
     private static String queryPage(HttpExchange ex) throws Exception {
-        // 解析月份参数，默认当前月
+        // 解析月份参数,默认当前月
         int curMonth = Date_time.getMonth();
         int selMonth = curMonth;
         int selDay = Date_time.getDay();
@@ -588,13 +645,13 @@ public class WebServer {
             "<script>" +
             "(function(){var params=new URLSearchParams(location.search);var h=parseInt(params.get('h'));if(isNaN(h)||h<0||h>23)h=new Date().getHours();var m=new Date().getMinutes();" +
             "var periods=[" +
-            "{t:'凌晨',m:'凌晨了，早点休息',h0:0,h1:5,bg:'linear-gradient(135deg,#0a0a1a,#1a1040,#0d0d2b)',gt:'linear-gradient(135deg,#818cf8,#c4b5fd)'}," +
+            "{t:'凌晨',m:'凌晨了,早点休息',h0:0,h1:5,bg:'linear-gradient(135deg,#0a0a1a,#1a1040,#0d0d2b)',gt:'linear-gradient(135deg,#818cf8,#c4b5fd)'}," +
             "{t:'早上',m:'早上好',h0:6,h1:8,bg:'linear-gradient(135deg,#ffecd2,#fcb69f,#a1c4fd)',gt:'linear-gradient(135deg,#f97316,#ec4899)'}," +
             "{t:'上午',m:'上午好',h0:9,h1:11,bg:'linear-gradient(135deg,#e0eafc,#cfdef3,#fffde7)',gt:'linear-gradient(135deg,#3b82f6,#06b6d4)'}," +
             "{t:'中午',m:'中午好',h0:12,h1:13,bg:'linear-gradient(135deg,#e0f7fa,#b2ebf2,#fff9c4)',gt:'linear-gradient(135deg,#00bcd4,#ff9800)'}," +
             "{t:'下午',m:'下午好',h0:14,h1:17,bg:'linear-gradient(135deg,#fef3c7,#fde68a,#fecaca)',gt:'linear-gradient(135deg,#f59e0b,#ef4444)'}," +
             "{t:'晚上',m:'晚上好',h0:18,h1:20,bg:'linear-gradient(135deg,#1e1b4b,#312e81,#5b21b6)',gt:'linear-gradient(135deg,#a78bfa,#fbbf24)'}," +
-            "{t:'深夜',m:'深夜了，注意休息',h0:21,h1:23,bg:'linear-gradient(135deg,#020024,#090979,#1a0040)',gt:'linear-gradient(135deg,#c084fc,#6366f1,#ec4899)'}];" +
+            "{t:'深夜',m:'深夜了,注意休息',h0:21,h1:23,bg:'linear-gradient(135deg,#020024,#090979,#1a0040)',gt:'linear-gradient(135deg,#c084fc,#6366f1,#ec4899)'}];" +
             "function getPeriod(h){for(var i=0;i<periods.length;i++){var p=periods[i];if(h>=p.h0&&h<=p.h1)return p}return periods[0]}" +
             "var p=getPeriod(h);document.getElementById('splashBg').style.background=p.bg;" +
             "var g=document.getElementById('greeting');g.textContent=p.m;" +
@@ -625,25 +682,32 @@ public class WebServer {
         sb.append("</div>");
         sb.append("<p class='hint'>当前月份表: ").append(t).append(" | 日期: ").append(Date_time.getDay()).append("日</p>");
         sb.append("<div class='hero-cards'>");
-        // 卡片一：存入消费
-        sb.append("<a href='/save' class='hero-link' style='--i:0'>");
+        // 卡片一：进账设置
+        sb.append("<a href='/income' class='hero-link' style='--i:0'>");
+        sb.append("<div class='hero-card hero-card-income'>");
+        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M12 2v20M17 7H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'/></svg></div>");
+        sb.append("<div class='hero-body'><h2>进账设置</h2><p>设置当月收入,消费管控以此为依据</p></div>");
+        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
+        sb.append("</div></a>");
+        // 卡片二：存入消费
+        sb.append("<a href='/save' class='hero-link' style='--i:1'>");
         sb.append("<div class='hero-card hero-card-save'>");
         sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><circle cx='12' cy='12' r='10'/><path d='M12 8v8M8 12h8'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>存入消费</h2><p>记录日常消费或特殊消费，按日期存入当月表中</p></div>");
+        sb.append("<div class='hero-body'><h2>存入消费</h2><p>记录日常消费或特殊消费,按日期存入当月表中</p></div>");
         sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
         sb.append("</div></a>");
         // 卡片二：消费查询
-        sb.append("<a href='/query' class='hero-link' style='--i:1'>");
+        sb.append("<a href='/query' class='hero-link' style='--i:2'>");
         sb.append("<div class='hero-card hero-card-query'>");
         sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/></svg></div>");
         sb.append("<div class='hero-body'><h2>消费查询</h2><p>月度统计 · 日均消费 · 折线图 · 日明细 · 特殊消费</p></div>");
         sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
         sb.append("</div></a>");
         // 卡片三：消费管控
-        sb.append("<a href='/budget' class='hero-link' style='--i:2'>");
+        sb.append("<a href='/budget' class='hero-link' style='--i:3'>");
         sb.append("<div class='hero-card hero-card-budget'>");
         sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2'/><circle cx='12' cy='12' r='7'/><path d='M12 9v3l2 2'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>消费管控</h2><p>预算监控，智慧理财每一笔支出</p></div>");
+        sb.append("<div class='hero-body'><h2>消费管控</h2><p>预算监控,智慧理财每一笔支出</p></div>");
         sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
         sb.append("</div></a>");
         sb.append("</div>");
@@ -653,16 +717,15 @@ public class WebServer {
     // ==================== 消费管控 ====================
 
     /** 预算：每月固定预算 1500 元 */
-    private static final double MONTHLY_BUDGET = 1500;
-
     private static String budgetPage() {
+        double monthlyIncome = getMonthlyIncome();
         String table = getMonthTable();
         int today = Date_time.getDay();
         int remainingDays = Date_time.getRemainingDays();
 
         StringBuilder sb = new StringBuilder();
         sb.append("<h2>消费管控</h2>");
-        sb.append("<p class='hint'>月预算 ¥").append(String.format("%.0f", MONTHLY_BUDGET))
+        sb.append("<p class='hint'>月收入 ¥").append(String.format("%.0f", monthlyIncome))
             .append(" | 今日: ").append(today).append("日 | 本月剩余: ").append(remainingDays).append("天</p>");
 
         // === 数据查询 ===
@@ -689,9 +752,9 @@ public class WebServer {
         }
 
         // === 计算 ===
-        double balance = MONTHLY_BUDGET - totalSpent;
+        double balance = monthlyIncome - totalSpent;
         double dailyRemaining = balance > 0 ? balance / remainingDays : 0;
-        double deficit = totalSpent > MONTHLY_BUDGET ? totalSpent - MONTHLY_BUDGET : 0;
+        double deficit = totalSpent > monthlyIncome ? totalSpent - monthlyIncome : 0;
 
         // === 统计面板 ===
         sb.append("<section class='query-section'><h3>本月概览</h3>");
@@ -779,9 +842,9 @@ public class WebServer {
     }
 
     private static String probEval(int prob) {
-        if (prob < 30) return "赤字率较低，继续保持当前消费习惯";
-        if (prob < 60) return "赤字率上升，需留意日常开支";
-        return "赤字率较高，请减少非必要消费";
+        if (prob < 30) return "赤字率较低,继续保持当前消费习惯";
+        if (prob < 60) return "赤字率上升,需留意日常开支";
+        return "赤字率较高,请减少非必要消费";
     }
 
     private static String savePage(String msg) {
@@ -796,16 +859,74 @@ public class WebServer {
             "<label class='radio-pill'><input type='radio' name='type' value='2'><span class='pill-text'>特殊消费</span></label>" +
             "</div>" +
             "<div class='input-group'><label>商品名称</label>" +
-            "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><path d='M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2'/><rect x='9' y='3' width='6' height='4' rx='1'/></svg>" +
-            "<input name='goods' required placeholder='例如：午餐'></div></div>" +
+            "<div class='input-wrap'><input name='goods' required placeholder='例如：午餐'></div></div>" +
             "<div class='input-group'><label>价格（元）</label>" +
-            "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><circle cx='12' cy='12' r='10'/><path d='M16 8h-4.5a2 2 0 100 4h1a2 2 0 010 4H8'/><path d='M12 6v2M12 16v2'/></svg>" +
-            "<input name='price' type='number' step='0.01' required placeholder='例如：25.5'></div></div>" +
+            "<div class='input-wrap'><input name='price' type='number' step='0.01' required placeholder='例如：25.5'></div></div>" +
             "<div class='input-group'><label>日期（日）</label>" +
-            "<div class='input-wrap'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>" +
-            "<input name='day' type='number' min='1' max='31' value='" + today + "' placeholder='" + today + "'></div></div>" +
+            "<div class='input-wrap'><input name='day' type='number' min='1' max='31' value='" + today + "' placeholder='" + today + "'></div></div>" +
             "<button type='submit' class='btn btn-lg btn-block'>确认存入</button>" +
             "</form></div>");
+    }
+
+    private static String incomePage() {
+        int month = Date_time.getMonth();
+        int today = Date_time.getDay();
+        StringBuilder sb = new StringBuilder();
+        sb.append("<h2>进账记录</h2>");
+        sb.append("<p class='hint'>逐笔记录当月收入,消费管控将以总额计算</p>");
+
+        // 录入表单
+        sb.append("<div class='form-card'>");
+        sb.append("<form method='post' action='/income'>");
+        sb.append("<div class='income-form-row'>");
+        sb.append("<div class='input-group'><label>日期</label><div class='input-wrap'><input name='date' type='number' min='1' max='31' value='" + today + "'></div></div>");
+        sb.append("<div class='input-group'><label>金额 (元)</label><div class='input-wrap'><input name='amount' type='number' step='0.01' required placeholder='5000'></div></div>");
+        sb.append("<div class='input-group'><label>备注</label><div class='input-wrap'><input name='description' placeholder='工资/兼职等'></div></div>");
+        sb.append("</div>");
+        sb.append("<button type='submit' class='btn'>添加进账</button>");
+        sb.append("</form></div>");
+
+        // 记录表格
+        double total = 0;
+        Connection conn = One.getConn();
+        if (conn != null) {
+            try {
+                initTable(conn);
+                PreparedStatement ps = One.getPreparedStmt(conn,
+                    "SELECT id, date, amount, description FROM income_records WHERE month = ? ORDER BY date, id");
+                ps.setInt(1, month);
+                ResultSet rs = ps.executeQuery();
+                if (rs.isBeforeFirst()) {
+                    sb.append("<table><tr><th>日期</th><th>金额</th><th>备注</th><th>操作</th></tr>");
+                    while (rs.next()) {
+                        int id = rs.getInt("id");
+                        double amt = rs.getDouble("amount");
+                        total += amt;
+                        sb.append("<tr><td>").append(rs.getInt("date")).append("日</td>");
+                        sb.append("<td>+¥").append(String.format("%.2f", amt)).append("</td>");
+                        sb.append("<td>").append(esc(rs.getString("description") != null ? rs.getString("description") : "")).append("</td>");
+                        sb.append("<td><form method='post' action='/income' style='display:inline' onsubmit=\"return confirm('确认删除？')\">");
+                        sb.append("<input type='hidden' name='_action' value='delete'>");
+                        sb.append("<input type='hidden' name='id' value='").append(id).append("'>");
+                        sb.append("<button class='btn btn-sm btn-danger'>删除</button></form></td></tr>");
+                    }
+                    sb.append("</table>");
+                } else {
+                    sb.append("<p class='hint' style='margin-top:16px'>暂无收入记录,默认可支配金额 ¥1500</p>");
+                }
+                rs.close(); ps.close();
+            } catch (Exception e) {
+                sb.append("<p class='error'>读取失败</p>");
+            } finally { try { conn.close(); } catch (Exception ignored) {} }
+        }
+
+        // 合计行
+        if (total > 0) {
+            sb.append("<div class='stat-row' style='margin-top:16px'>");
+            sb.append("<div class='stat'><span>本月总收入</span><strong>¥").append(String.format("%.2f", total)).append("</strong></div>");
+            sb.append("</div>");
+        }
+        return page("进账设置", sb.toString());
     }
 
     // ==================== HTML 模板 ====================
@@ -974,6 +1095,8 @@ public class WebServer {
             "[data-theme='dark'] .hero-card-query::before{background:linear-gradient(90deg,#fbbf24,#f59e0b)}" +
             ".hero-card-budget::before{background:linear-gradient(90deg,#10b981,#34d399)}" +
             "[data-theme='dark'] .hero-card-budget::before{background:linear-gradient(90deg,#6ee7b7,#34d399)}" +
+            ".hero-card-income::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}" +
+            "[data-theme='dark'] .hero-card-income::before{background:linear-gradient(90deg,#fbbf24,#fcd34d)}" +
             ".hero-card:hover{transform:translateY(-4px) scale(1.015);" +
             "box-shadow:0 12px 40px rgba(0,0,0,.12);border-color:transparent}" +
             ".hero-card:hover::before{height:5px}" +
@@ -983,6 +1106,7 @@ public class WebServer {
             ".hero-card-save .hero-icon{background:rgba(79,110,247,.1);color:var(--accent)}" +
             ".hero-card-query .hero-icon{background:rgba(245,158,11,.1);color:#f59e0b}" +
 ".hero-card-budget .hero-icon{background:rgba(16,185,129,.1);color:#10b981}" +
+".hero-card-income .hero-icon{background:rgba(245,158,11,.1);color:#f59e0b}" +
             ".hero-card:hover .hero-icon{transform:scale(1.1)}" +
             ".hero-body{flex:1;min-width:0}" +
             ".hero-body h2{font-size:clamp(18px,2.5vw,22px);font-weight:700;color:var(--text);border-left:none;padding-left:0;" +
@@ -1133,6 +1257,8 @@ public class WebServer {
             ".input-group{display:flex;flex-direction:column;gap:var(--space-xs)}" +
             ".input-group label{font-size:13px;font-weight:550;color:var(--text2);" +
             "margin-bottom:0;text-transform:uppercase;letter-spacing:.06em}" +
+            ".income-form-row{display:flex;gap:var(--space-md);flex-wrap:wrap}" +
+            ".income-form-row .input-group{flex:1;min-width:120px}" +
             ".input-wrap{position:relative;display:flex;align-items:center}" +
             ".input-wrap .input-icon{position:absolute;left:14px;color:var(--text2);" +
             "pointer-events:none;transition:color .2s var(--ease-out)}" +
