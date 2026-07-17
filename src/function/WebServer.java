@@ -7,7 +7,6 @@ import java.net.*;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
-
 public class WebServer {
 
     private static final int[] PORTS = {8080, 8081, 8082, 9090};
@@ -61,7 +60,7 @@ public class WebServer {
                 case "/income"       -> { if ("POST".equals(method)) handleIncomePost(ex, parseForm(ex)); else html(ex, incomePage()); }
                 case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
                 case "/budget"       -> html(ex, budgetPage());
-                case "/export"       -> handleExport(ex);
+                case "/export"       -> handleExportData(ex);
                 case "/chart-img"    -> serveChart(ex);
                 default              -> {
                     if (path.startsWith("/static/")) serveStatic(ex, path);
@@ -195,7 +194,8 @@ public class WebServer {
         StringBuilder sb = new StringBuilder();
         sb.append("<div class='page-header-row'>");
         sb.append("<h2>消费查询</h2>");
-        sb.append("<a href='/export?month=").append(selMonth).append("' class='btn btn-sm btn-export'>📥 导出Excel</a>");
+        sb.append("<button onclick='exportExcel(").append(selMonth).append(")' class='btn btn-sm btn-export'>📥 导出Excel</button>");
+        sb.append("<script src='/static/xlsx.full.min.js'></script>");
         sb.append("</div>");
 
         sb.append("<div class='filter-bar'>");
@@ -331,6 +331,25 @@ public class WebServer {
         }
         sb.append("</section>");
 
+        sb.append("<script>");
+        sb.append("function exportExcel(m){");
+        sb.append("fetch('/export?month='+m).then(function(r){return r.json()}).then(function(d){");
+        sb.append("var wb=XLSX.utils.book_new();");
+        sb.append("var a=[['日常消费','','','','特殊消费','','']];");
+        sb.append("a.push(['日期','商品名','金额','','日期','商品名','金额']);");
+        sb.append("var mx=Math.max(d.daily.length,d.special.length);");
+        sb.append("for(var i=0;i<mx;i++){var r=['','','','','','',''];");
+        sb.append("if(i<d.daily.length){r[0]=d.daily[i].d+'日';r[1]=d.daily[i].g;r[2]=d.daily[i].p}");
+        sb.append("if(i<d.special.length){r[4]=d.special[i].d+'日';r[5]=d.special[i].g;r[6]=d.special[i].p}");
+        sb.append("a.push(r)}");
+        sb.append("var dd=0;d.daily.forEach(function(x){dd+=x.p});");
+        sb.append("var ds=0;d.special.forEach(function(x){ds+=x.p});");
+        sb.append("a.push(['','合计',dd,'','','合计',ds]);");
+        sb.append("var ws=XLSX.utils.aoa_to_sheet(a);");
+        sb.append("ws['!cols']=[{wch:6},{wch:24},{wch:10},{wch:3},{wch:6},{wch:24},{wch:10}];");
+        sb.append("XLSX.utils.book_append_sheet(wb,ws,'"+ "'+m+'月" + "');");
+        sb.append("XLSX.writeFile(wb,m+'月消费数据.xlsx')})}");
+        sb.append("</script>");
         return page("消费查询", sb.toString());
     }
 
@@ -383,7 +402,7 @@ public class WebServer {
 
     // ==================== Excel 导出 ====================
 
-    private static void handleExport(HttpExchange ex) {
+    private static void handleExportData(HttpExchange ex) throws Exception {
         int month = Date_time.getMonth();
         String q = ex.getRequestURI().getQuery();
         if (q != null) {
@@ -392,69 +411,47 @@ public class WebServer {
         String table = String.format("table_%02d", month);
 
         Connection conn = One.getConn();
-        if (conn == null) {
-            try { html(ex, errorPage("数据库连接失败")); } catch (Exception ignored) {}
-            return;
-        }
+        if (conn == null) { try { html(ex, errorPage("数据库连接失败")); } catch (Exception ignored) {} return; }
 
         try {
-            StringBuilder html = new StringBuilder();
-            html.append("<html><head><meta charset='UTF-8'><style>");
-            html.append("table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 10px;font-size:12px}");
-            html.append("th{background:#e2e2ec;font-weight:bold;text-align:center}");
-            html.append(".price{text-align:right}.date{text-align:center}.gap{width:40px;border:none}");
-            html.append("h2{font-size:14px;margin:0 0 8px}");
-            html.append("</style></head><body>");
-            html.append("<h2>日常消费</h2>");
-            html.append("<table><tr><th>日期</th><th>商品名</th><th>价格</th></tr>");
+            StringBuilder json = new StringBuilder();
+            json.append("{\"month\":").append(month).append(",\"daily\":[");
 
             PreparedStatement ps = One.getPreparedStmt(conn,
                 "SELECT date, goods, price FROM " + table + " WHERE num_1=1 ORDER BY date");
             ResultSet rs = ps.executeQuery();
-            double dailyTotal = 0;
+            boolean first = true;
             while (rs.next()) {
-                double p = rs.getDouble("price");
-                dailyTotal += p;
-                html.append("<tr><td class='date'>").append(rs.getInt("date")).append("日</td>");
-                html.append("<td>").append(esc(rs.getString("goods"))).append("</td>");
-                html.append("<td class='price'>¥").append(String.format("%.2f", p)).append("</td></tr>");
+                if (!first) json.append(",");
+                json.append("{\"d\":").append(rs.getInt("date"))
+                    .append(",\"g\":\"").append(escJson(rs.getString("goods")))
+                    .append("\",\"p\":").append(rs.getDouble("price")).append("}");
+                first = false;
             }
-            rs.close(); ps.close();
-            html.append("<tr style='font-weight:bold;background:#f0f0f0'><td colspan='2' style='text-align:right'>合计</td>");
-            html.append("<td class='price'>¥").append(String.format("%.2f", dailyTotal)).append("</td></tr>");
+            rs.close();
 
-            html.append("</table>");
-            html.append("<br><h2>特殊消费</h2>");
-            html.append("<table><tr><th>日期</th><th>商品名</th><th>价格</th></tr>");
-
+            json.append("],\"special\":[");
             ps = One.getPreparedStmt(conn,
                 "SELECT date, goods, price FROM " + table + " WHERE num_1=2 ORDER BY date");
             rs = ps.executeQuery();
-            double fixedTotal = 0;
+            first = true;
             while (rs.next()) {
-                double p = rs.getDouble("price");
-                fixedTotal += p;
-                html.append("<tr><td class='date'>").append(rs.getInt("date")).append("日</td>");
-                html.append("<td>").append(esc(rs.getString("goods"))).append("</td>");
-                html.append("<td class='price'>¥").append(String.format("%.2f", p)).append("</td></tr>");
+                if (!first) json.append(",");
+                json.append("{\"d\":").append(rs.getInt("date"))
+                    .append(",\"g\":\"").append(escJson(rs.getString("goods")))
+                    .append("\",\"p\":").append(rs.getDouble("price")).append("}");
+                first = false;
             }
-            rs.close(); ps.close();
-            html.append("<tr style='font-weight:bold;background:#f0f0f0'><td colspan='2' style='text-align:right'>合计</td>");
-            html.append("<td class='price'>¥").append(String.format("%.2f", fixedTotal)).append("</td></tr>");
-            conn.close();
+            rs.close(); ps.close(); conn.close();
+            json.append("]}");
 
-            html.append("</table></body></html>");
-
-            byte[] bytes = html.toString().getBytes("UTF-8");
-            ex.getResponseHeaders().set("Content-Type", "application/vnd.ms-excel; charset=UTF-8");
-            String fn = new String((month + "月消费数据.xls").getBytes("UTF-8"), "ISO-8859-1");
-            ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + fn + "\"");
+            byte[] bytes = json.toString().getBytes("UTF-8");
+            ex.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
             ex.sendResponseHeaders(200, bytes.length);
             try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
-
         } catch (Exception e) {
             try { conn.close(); } catch (Exception ignored) {}
-            e.printStackTrace();
+            throw e;
         }
     }
 
@@ -1391,6 +1388,11 @@ public class WebServer {
 
     private static String getMonthTable() {
         return String.format("table_%02d", Date_time.getMonth());
+    }
+
+    /** JSON 字符串转义 */
+    private static String escJson(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     /** HTML 转义 */
