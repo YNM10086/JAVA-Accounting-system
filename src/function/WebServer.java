@@ -945,8 +945,23 @@ public class WebServer {
             "<title>" + title + "</title><style>" + css() + "</style>" +
             "<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();" +
             "function toggleTheme(){var e=document.documentElement;var t=e.getAttribute('data-theme')==='dark'?'light':'dark';e.setAttribute('data-theme',t);localStorage.setItem('theme',t);}</script>" +
-            "<style>.bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none}</style>" +
-            "</head><body><canvas class='bg-canvas' id='bgCanvas'></canvas><main class='container'>" + body + "</main>" +
+            "<style>.bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none}" +
+            "[data-theme='light'] .bokeh-bg{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}" +
+            "[data-theme='light'] .bokeh-bg .bg-soft{position:absolute;inset:0;background:" +
+            "radial-gradient(40% 52% at 16% 20%,rgba(120,150,255,.22),transparent 70%)," +
+            "radial-gradient(34% 44% at 84% 14%,rgba(255,150,195,.18),transparent 72%)," +
+            "radial-gradient(42% 52% at 80% 84%,rgba(110,212,172,.20),transparent 72%)," +
+            "radial-gradient(36% 46% at 22% 88%,rgba(245,202,128,.16),transparent 72%)," +
+            "linear-gradient(135deg,#eef0f5,#e6e7ee)}" +
+            "[data-theme='light'] .bokeh-bg .bg-bokeh{position:absolute;inset:0;--blob-a:#5b8def;--blob-b:#e8503a}" +
+            "[data-theme='light'] .bokeh-bg .bg-bokeh i{position:absolute;border-radius:50%;" +
+            "background:radial-gradient(circle at 50% 50%,var(--blob-a),transparent 70%);filter:blur(12px);opacity:.28}" +
+            "[data-theme='light'] .bokeh-bg .bg-bokeh i:first-child{width:620px;height:620px;right:-190px;top:-260px;" +
+            "opacity:.2;filter:blur(28px)}" +
+            "[data-theme='light'] .bokeh-bg .bg-bokeh i:last-child{width:420px;height:420px;left:-160px;bottom:-190px;" +
+            "opacity:.16;filter:blur(32px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}</style>" +
+            "</head><body><div class='bokeh-bg'><i class='bg-soft'></i><i class='bg-bokeh'><i></i><i></i></i></div>" +
+            "<canvas class='bg-canvas' id='bgCanvas'></canvas><main class='container'>" + body + "</main>" +
             "<script>!function(){var c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');" +
             "var w,h;function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight}" +
             "window.addEventListener('resize',resize);resize();" +
