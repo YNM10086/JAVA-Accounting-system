@@ -959,35 +959,37 @@ public class WebServer {
             "[data-theme='light'] .bokeh-bg .bg-bokeh i:first-child{width:620px;height:620px;right:-190px;top:-260px;" +
             "opacity:.2;filter:blur(28px)}" +
             "[data-theme='light'] .bokeh-bg .bg-bokeh i:last-child{width:420px;height:420px;left:-160px;bottom:-190px;" +
-            "opacity:.16;filter:blur(32px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}</style>" +
+            "opacity:.16;filter:blur(32px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}" +
+            "[data-theme='dark'] .bokeh-bg{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}" +
+            "[data-theme='dark'] .bokeh-bg .bg-soft{position:absolute;inset:0;background:" +
+            "radial-gradient(40% 52% at 16% 20%,rgba(80,100,180,.15),transparent 70%)," +
+            "radial-gradient(34% 44% at 84% 14%,rgba(140,80,120,.12),transparent 72%)," +
+            "radial-gradient(42% 52% at 80% 84%,rgba(70,140,110,.14),transparent 72%)," +
+            "radial-gradient(36% 46% at 22% 88%,rgba(140,110,70,.10),transparent 72%)," +
+            "linear-gradient(135deg,#0a0a12,#0f0f1a)}" +
+            "[data-theme='dark'] .bokeh-bg .bg-bokeh{position:absolute;inset:0;--blob-a:#3a5ab0;--blob-b:#a03020}" +
+            "[data-theme='dark'] .bokeh-bg .bg-bokeh i{position:absolute;border-radius:50%;" +
+            "background:radial-gradient(circle at 50% 50%,var(--blob-a),transparent 70%);filter:blur(16px);opacity:.20}" +
+            "[data-theme='dark'] .bokeh-bg .bg-bokeh i:first-child{width:620px;height:620px;right:-190px;top:-260px;" +
+            "opacity:.15;filter:blur(32px)}" +
+            "[data-theme='dark'] .bokeh-bg .bg-bokeh i:last-child{width:420px;height:420px;left:-160px;bottom:-190px;" +
+            "opacity:.12;filter:blur(36px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}</style>" +
             "</head><body><div class='bokeh-bg'><i class='bg-soft'></i><i class='bg-bokeh'><i></i><i></i></i></div>" +
             "<canvas class='bg-canvas' id='bgCanvas'></canvas><main class='container'>" + body + "</main>" +
             "<script>!function(){var c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');" +
             "var w,h;function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight}" +
             "window.addEventListener('resize',resize);resize();" +
-            "var sq=[];var n=Math.min(28,w>800?40:16);" +
-            "var dpal=[['rgba(255,255,255,','rgba(200,210,255,']," +
-            "['rgba(200,180,255,','rgba(160,140,230,']," +
-            "['rgba(180,220,255,','rgba(140,180,230,']," +
-            "['rgba(255,180,200,','rgba(220,130,170,']," +
-            "['rgba(180,255,220,','rgba(130,210,180,']];" +
             "function r(a,b){return Math.random()*(b-a)+a}" +
-            "for(var i=0;i<n;i++){var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);" +
-            "sq.push({x:side+r(-20,20),y:r(0,h)," +
-            "s:r(20,50)+r(.4,1)*80,sp:r(.08,.15)+r(.2,.6),op:r(.08,.12)+r(.4,1)*.1," +
-            "ci:Math.floor(r(0,5)),vx:r(-.03,.03)})}" +
+            "var lightPal=[['rgba(0,188,212,','rgba(0,140,170,'],['rgba(0,200,170,','rgba(0,155,130,'],['rgba(139,195,74,','rgba(100,160,40,'],['rgba(205,190,50,','rgba(165,150,30,'],['rgba(255,183,77,','rgba(210,145,40,']];" +
+            "var darkPal=[['rgba(100,180,255,','rgba(60,130,200,'],['rgba(80,220,180,','rgba(50,160,130,'],['rgba(160,210,90,','rgba(110,170,50,'],['rgba(230,200,70,','rgba(180,155,40,'],['rgba(255,160,80,','rgba(200,120,40,']];" +
             "var lb=[];var lm=Math.min(24,w>800?36:14);" +
-            "var lpal=[['rgba(0,188,212,','rgba(0,140,170,']," +
-            "['rgba(0,200,170,','rgba(0,155,130,']," +
-            "['rgba(139,195,74,','rgba(100,160,40,']," +
-            "['rgba(205,190,50,','rgba(165,150,30,']," +
-            "['rgba(255,183,77,','rgba(210,145,40,']];" +
             "for(var i=0;i<lm;i++){var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);" +
             "var depth=r(.4,1);lb.push({x:side+r(-20,20),y:r(0,h)," +
             "s:r(20,50)+depth*90,sp:r(.08,.15)+depth*.35,op:r(.08,.12)+depth*.12," +
             "ci:Math.floor(r(0,5)),vx:r(-.03,.03),depth:depth})}" +
-            "function draw(){ctx.clearRect(0,0,w,h);var isLight=document.documentElement.getAttribute('data-theme')!=='dark';" +
-            "if(isLight){for(var i=0;i<lb.length;i++){var b=lb[i];b.y-=b.sp;b.x+=b.vx;" +
+            "function draw(){var isDark=document.documentElement.getAttribute('data-theme')==='dark';" +
+            "var lpal=isDark?darkPal:lightPal;ctx.clearRect(0,0,w,h);" +
+            "for(var i=0;i<lb.length;i++){var b=lb[i];b.y-=b.sp;b.x+=b.vx;" +
             "var p=Math.min(1,Math.max(0,b.y/h));var op=b.op*p;var sz=b.s*p;" +
             "if(b.y<-b.s*2){b.y=h+r(0,h*.3);var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);b.x=side+r(-20,20);" +
             "b.s=r(20,50)+r(.4,1)*90;b.sp=r(.08,.15)+r(.2,.7);b.op=r(.08,.12)+r(.4,1)*.12;b.ci=Math.floor(r(0,5))}" +
@@ -996,16 +998,7 @@ public class WebServer {
             "grd.addColorStop(0,'rgba(255,255,255,'+(op*.5).toFixed(3)+')');" +
             "grd.addColorStop(.5,lpal[c1][0]+(op*.8).toFixed(3)+')');" +
             "grd.addColorStop(1,lpal[c2][1]+(op*.6).toFixed(3)+')');" +
-            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,sz/2,0,Math.PI*2);ctx.fill()}}}" +
-            "else{for(var i=0;i<sq.length;i++){var q=sq[i];q.y-=q.sp;q.x+=q.vx;" +
-            "var p=Math.min(1,Math.max(0,q.y/h));var op=q.op*p;var sz=q.s*p;" +
-            "if(q.y<-q.s*2){var side=q.x<w/2?r(10,w*0.3):r(w*0.7,w-10);q.x=side+r(-20,20);q.y=h+r(0,h*.3);" +
-            "q.s=r(20,50)+r(.4,1)*80;q.sp=r(.08,.15)+r(.2,.6);q.op=r(.08,.12)+r(.4,1)*.1;q.ci=Math.floor(r(0,5))}" +
-            "if(sz>4){var grd=ctx.createRadialGradient(q.x-sz*.15,q.y-sz*.15,0,q.x,q.y,sz/2);" +
-            "grd.addColorStop(0,'rgba(255,255,255,'+(op*.6).toFixed(3)+')');" +
-            "grd.addColorStop(.5,dpal[q.ci][0]+(op*.7).toFixed(3)+')');" +
-            "grd.addColorStop(1,dpal[q.ci][1]+(op*.5).toFixed(3)+')');" +
-            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(q.x,q.y,sz/2,0,Math.PI*2);ctx.fill()}}}" +
+            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,sz/2,0,Math.PI*2);ctx.fill()}}" +
             "requestAnimationFrame(draw)}draw()}();</script>" +
             "</body></html>";
     }
