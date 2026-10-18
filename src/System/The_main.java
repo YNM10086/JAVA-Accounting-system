@@ -4,6 +4,7 @@ import function.Date_time;
 import function.Line;
 import function.Menu;
 import function.One;
+import function.Archiver;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -52,6 +53,7 @@ public class The_main {
     // ==================== 功能一：存入消费 ====================
 
     private static void saveConsumption() {
+        Archiver.ensureRollover(); // 写入前检查跨年
         Scanner in = new Scanner(System.in);
         int day = Date_time.getDay();
         String table = getTableName();
@@ -128,14 +130,13 @@ public class The_main {
         if (conn == null) return;
         try {
             PreparedStatement ps = One.getPreparedStmt(conn,
-                "SELECT SUM(price), COUNT(DISTINCT date), COUNT(*), " +
-                "COALESCE(SUM(CASE WHEN num_1 = 1 THEN price END) / NULLIF(COUNT(DISTINCT CASE WHEN num_1 = 1 THEN date END), 0), 0) FROM " + table);
+                "SELECT SUM(price), SUM(CASE WHEN num_1 = 1 THEN price END), COUNT(*) FROM " + table);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 double total = rs.getDouble(1);
-                int days = rs.getInt(2);
+                int days = Date_time.getElapsedDays(Date_time.getMonth());
                 int count = rs.getInt(3);
-                double dailyAvg = rs.getDouble(4);
+                double dailyAvg = days > 0 ? rs.getDouble(2) / days : 0;
                 System.out.printf("总消费: %.2f | 日均消费: %.2f | 天数: %d | 记录数: %d\n",
                     total, dailyAvg, days, count);
             } else {
@@ -324,6 +325,12 @@ public class The_main {
     // ==================== 主入口 ====================
 
     public static void main(String[] args) {
+        try {
+            Archiver.ensureRollover();
+        } catch (Exception e) {
+            System.out.println("跨年归档检查异常（不影响启动）。");
+            e.printStackTrace();
+        }
         try {
             function.WebServer.start();
         } catch (Exception e) {

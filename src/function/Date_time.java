@@ -24,6 +24,16 @@ public class Date_time {
         return getMonthDays() - getDay() + 1;
     }
 
+    // 返回指定月份的"已过天数"：当前月→到今天为止，历史月→整月天数，未来月→0
+    public static int getElapsedDays(int month) {
+        LocalDate now = LocalDate.now();
+        int cur = now.getMonthValue();
+        if (month == cur) return now.getDayOfMonth();
+        if (month < 1 || month > 12) month = cur;
+        if (month < cur) return now.withMonth(month).lengthOfMonth();
+        return 0;
+    }
+
     // 返回紧凑格式：20260430
     public static int getToday() {
         LocalDate d = LocalDate.now();

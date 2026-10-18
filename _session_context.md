@@ -11,9 +11,15 @@
   - `src/function/One.java` — 数据库连接工具（需配置 MySQL 连接信息）
   - `src/function/Date_time.java` — 日期时间工具
   - `src/function/Line.java` — 折线图生成（JDK Graphics2D）
+  - `src/function/Archiver.java` — 跨年自动归档（标记文件 records/.current_year，跨年导出 Excel 后清表）
   - `static/` — 静态资源目录
-  - `lib/` — 依赖 jar 包（MySQL Connector 等）
+  - `lib/` — 依赖 jar 包（MySQL Connector、Apache POI 等；POI 供归档用）
   - `out/` — 编译输出
+- 跨年归档机制：
+  - 12 张表 `table_01`~`table_12` 按月循环、**无年份字段**；`records/.current_year` 记住当前数据属于哪年
+  - 触发：`Archiver.ensureRollover()`（幂等），挂在 `The_main.main()`、控制台 `saveConsumption()`、Web `handleSavePost`/`handleIncomePost`
+  - 跨年时先导出 `records/<旧年>-<MM>.xlsx`（消费）与 `records/<旧年>-income.xlsx`（收入），全部成功才清表，最后更新标记；失败保留数据下次重试
+  - `records/` 已 gitignore（按本机年份状态生成）
 - 产出流程：
   1. IDEA 打开项目
   2. 将 lib/ 目录下所有 jar 添加为项目库

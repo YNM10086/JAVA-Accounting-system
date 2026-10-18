@@ -28,6 +28,19 @@
 - JDK 17+
 - MySQL 8.0+
 
+### 依赖 jar（仓库不提供，需自行准备）
+
+跨年归档功能依赖 Apache POI，其中 **`commons-compress` 必须额外添加**，否则程序启动时检查跨年会报
+`NoClassDefFoundError: org/apache/commons/compress/archivers/zip/ZipFile`。
+
+把以下 jar 放入 `lib/` 并添加为项目库：
+
+- `commons-compress-1.26.1.jar`
+  （其余依赖 `poi-5.2.5.jar`、`poi-ooxml-5.2.5.jar`、`poi-ooxml-lite-5.2.5.jar`、
+  `xmlbeans-5.1.1.jar`、`commons-collections4-4.4.jar`、`commons-io-2.15.1.jar`、
+  `commons-math3-3.6.1.jar`、`commons-codec-1.16.1.jar`、`log4j-api-2.21.1.jar`、
+  `log4j-core-2.21.1.jar`、`mysql-connector-j-9.7.0.jar` 同样需自行准备）
+
 ### 数据库配置
 
 1. 创建数据库：

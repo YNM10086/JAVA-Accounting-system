@@ -77,6 +77,7 @@ public class WebServer {
     // ==================== 存入消费 ====================
 
     private static void handleSavePost(HttpExchange ex, Map<String, String> f) throws Exception {
+        Archiver.ensureRollover(); // 写入前检查跨年
         String goods = f.get("goods");
         String priceStr = f.get("price");
         String typeStr = f.get("type");
@@ -119,6 +120,7 @@ public class WebServer {
     }
 
     private static void handleIncomePost(HttpExchange ex, Map<String, String> f) throws Exception {
+        Archiver.ensureRollover(); // 写入前检查跨年
         int month = Date_time.getMonth();
         Connection conn = One.getConn();
         if (conn == null) { redirect(ex, "/income"); return; }
@@ -211,17 +213,19 @@ public class WebServer {
         if (conn == null) return errorPage("数据库连接失败");
         try {
             PreparedStatement ps = One.getPreparedStmt(conn,
-                "SELECT SUM(price), COUNT(DISTINCT date), COUNT(*), " +
-                "COALESCE(SUM(CASE WHEN num_1=1 THEN price END)/NULLIF(COUNT(DISTINCT CASE WHEN num_1=1 THEN date END),0),0) FROM " + table);
+                "SELECT SUM(price), SUM(CASE WHEN num_1=1 THEN price END), COUNT(*) FROM " + table);
             ResultSet rs = ps.executeQuery();
             if (rs.next() && rs.getInt(3) > 0) {
+                int elapsedDays = Date_time.getElapsedDays(selMonth);
+                double dailySum = rs.getDouble(2);
+                double dailyAvg = elapsedDays > 0 ? dailySum / elapsedDays : 0;
                 sb.append("<div class='stat-row'>");
                 sb.append("<div class='stat'><span>总消费</span><strong>¥").append(String.format("%.2f", rs.getDouble(1))).append("</strong></div>");
-                sb.append("<div class='stat'><span>日均消费</span><strong>¥").append(String.format("%.2f", rs.getDouble(4))).append("</strong></div>");
-                sb.append("<div class='stat'><span>消费天数</span><strong>").append(rs.getInt(2)).append(" 天</strong></div>");
+                sb.append("<div class='stat'><span>日均消费</span><strong>¥").append(String.format("%.2f", dailyAvg)).append("</strong></div>");
+                sb.append("<div class='stat'><span>统计天数</span><strong>").append(elapsedDays).append(" 天</strong></div>");
                 sb.append("<div class='stat'><span>总记录数</span><strong>").append(rs.getInt(3)).append(" 条</strong></div>");
                 sb.append("</div>");
-                sb.append("<p class='hint'>日均消费仅统计日常消费</p>");
+                sb.append("<p class='hint'>日均消费 = 日常消费总额 ÷ 已过天数（").append(selMonth == curMonth ? "本月截至今天" : "整月").append("）</p>");
             } else {
                 sb.append("<p>暂无消费记录。</p>");
             }
@@ -738,10 +742,12 @@ public class WebServer {
                 rs.close();
 
                 ps = One.getPreparedStmt(conn,
-                    "SELECT COALESCE(SUM(CASE WHEN num_1=1 THEN price END)/" +
-                    "NULLIF(COUNT(DISTINCT CASE WHEN num_1=1 THEN date END),0),0) FROM " + table);
+                    "SELECT COALESCE(SUM(CASE WHEN num_1=1 THEN price END),0) FROM " + table);
                 rs = ps.executeQuery();
-                if (rs.next()) dailyAvg = rs.getDouble(1);
+                if (rs.next()) {
+                    int elapsedDays = Date_time.getElapsedDays(Date_time.getMonth());
+                    dailyAvg = elapsedDays > 0 ? rs.getDouble(1) / elapsedDays : 0;
+                }
                 rs.close(); ps.close();
             } catch (Exception e) {
                 e.printStackTrace();

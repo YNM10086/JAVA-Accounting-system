@@ -15,6 +15,12 @@ src/function/One.java
 # === 生成的图表图片 ===
 The_Pic/
 
+# === 跨年归档产出（Excel + 年份标记，按本机年份状态生成，不入库） ===
+records/
+
+# === 数据库备份 ===
+_backup/
+
 # === 系统文件 ===
 .DS_Store
 Thumbs.db
