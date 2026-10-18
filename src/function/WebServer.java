@@ -78,18 +78,15 @@ public class WebServer {
 
     private static void handleSavePost(HttpExchange ex, Map<String, String> f) throws Exception {
         Archiver.ensureRollover(); // 写入前检查跨年
-        String goods = f.get("goods");
-        String priceStr = f.get("price");
-        String typeStr = f.get("type");
-
-        if (goods == null || goods.trim().isEmpty() || priceStr == null || typeStr == null) {
-            html(ex, savePage("商品名和价格不能为空")); return;
+        // 先解析月份与日期,便于出错时回显用户所选
+        String monthStr = f.get("month");
+        int month;
+        try {
+            month = (monthStr != null && !monthStr.trim().isEmpty()) ? Integer.parseInt(monthStr) : Date_time.getMonth();
+        } catch (NumberFormatException e) {
+            month = Date_time.getMonth();
         }
-        double price;
-        try { price = Double.parseDouble(priceStr); } catch (NumberFormatException e) {
-            html(ex, savePage("价格格式错误")); return;
-        }
-        int num1 = "1".equals(typeStr) ? 1 : 2;
+        if (month < 1 || month > 12) month = Date_time.getMonth();
 
         String dayStr = f.get("day");
         int day;
@@ -98,10 +95,24 @@ public class WebServer {
         } catch (NumberFormatException e) {
             day = Date_time.getDay();
         }
+        if (day < 1 || day > 31) day = Date_time.getDay();
 
-        String table = getMonthTable();
+        String goods = f.get("goods");
+        String priceStr = f.get("price");
+        String typeStr = f.get("type");
+
+        if (goods == null || goods.trim().isEmpty() || priceStr == null || typeStr == null) {
+            html(ex, savePage("商品名和价格不能为空", month, day)); return;
+        }
+        double price;
+        try { price = Double.parseDouble(priceStr); } catch (NumberFormatException e) {
+            html(ex, savePage("价格格式错误", month, day)); return;
+        }
+        int num1 = "1".equals(typeStr) ? 1 : 2;
+
+        String table = String.format("table_%02d", month);
         Connection conn = One.getConn();
-        if (conn == null) { html(ex, savePage("数据库连接失败")); return; }
+        if (conn == null) { html(ex, savePage("数据库连接失败", month, day)); return; }
         try {
             PreparedStatement ps = One.getPreparedStmt(conn,
                 "INSERT INTO " + table + " (date, goods, price, num_1) VALUES (?, ?, ?, ?)");
@@ -112,10 +123,10 @@ public class WebServer {
             ps.executeUpdate();
             ps.close();
             conn.close();
-            html(ex, savePage("存入成功！"));
+            html(ex, savePage("存入成功！", month, day));
         } catch (Exception e) {
             conn.close();
-            html(ex, savePage("存入失败：" + e.getMessage()));
+            html(ex, savePage("存入失败：" + e.getMessage(), month, day));
         }
     }
 
@@ -257,6 +268,32 @@ public class WebServer {
 
         // === 三、日消费明细 ===
         sb.append("<section class='query-section'><h3>日消费明细</h3>");
+
+        // 今日消费（当月表内今天这一天的全部记录，含日常与特殊）
+        int todayDay = Date_time.getDay();
+        String todayTable = String.format("table_%02d", curMonth);
+        Connection connToday = One.getConn();
+        if (connToday != null) {
+            try {
+                PreparedStatement psToday = One.getPreparedStmt(connToday,
+                    "SELECT COALESCE(SUM(price),0), COUNT(*) FROM " + todayTable + " WHERE date=?");
+                psToday.setInt(1, todayDay);
+                ResultSet rsToday = psToday.executeQuery();
+                if (rsToday.next()) {
+                    double todaySum = rsToday.getDouble(1);
+                    int todayCnt = rsToday.getInt(2);
+                    sb.append("<div class='stat-row'>");
+                    sb.append("<div class='stat'><span>今日消费（").append(curMonth).append("月").append(todayDay).append("日）</span><strong>¥")
+                        .append(String.format("%.2f", todaySum)).append("</strong></div>");
+                    sb.append("<div class='stat'><span>今日笔数</span><strong>").append(todayCnt).append(" 笔</strong></div>");
+                    sb.append("</div>");
+                    if (todayCnt == 0) sb.append("<p class='hint'>今天还没有消费记录。</p>");
+                    if (selMonth != curMonth) sb.append("<p class='hint'>「今日消费」始终统计当前月份（").append(curMonth).append("月）的今天，与上方所选月份无关。</p>");
+                }
+                rsToday.close(); psToday.close();
+            } finally { connToday.close(); }
+        }
+
         sb.append("<form class='inline-form' action='/query' method='get'>");
         sb.append("<input type='hidden' name='month' value='").append(selMonth).append("'>");
         sb.append("<div class='input-wrap' style='flex:1'><svg class='input-icon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' width='18' height='18'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>");
@@ -851,8 +888,19 @@ public class WebServer {
     }
 
     private static String savePage(String msg) {
+        return savePage(msg, Date_time.getMonth(), Date_time.getDay());
+    }
+
+    private static String savePage(String msg, int month, int day) {
         String msgHtml = msg != null ? "<p class='" + (msg.contains("成功") ? "success" : "error") + "'>" + msg + "</p>" : "";
-        int today = Date_time.getDay();
+        if (month < 1 || month > 12) month = Date_time.getMonth();
+        int curMonth = Date_time.getMonth();
+        if (day < 1 || day > 31) day = Date_time.getDay();
+        StringBuilder monthOptions = new StringBuilder();
+        for (int m = 1; m <= 12; m++) {
+            monthOptions.append("<option value='").append(m).append("'").append(m == month ? " selected" : "")
+                .append(">").append(m).append("月").append(m == curMonth ? " (本月)" : "").append("</option>");
+        }
         return page("存入消费",
             "<h2>存入消费信息</h2>" + msgHtml +
             "<div class='form-card'>" +
@@ -865,8 +913,10 @@ public class WebServer {
             "<div class='input-wrap'><input name='goods' required placeholder='例如：午餐'></div></div>" +
             "<div class='input-group'><label>价格（元）</label>" +
             "<div class='input-wrap'><input name='price' type='number' step='0.01' required placeholder='例如：25.5'></div></div>" +
+            "<div class='input-group'><label>月份</label>" +
+            "<div class='input-wrap'><select name='month'>" + monthOptions + "</select></div></div>" +
             "<div class='input-group'><label>日期（日）</label>" +
-            "<div class='input-wrap'><input name='day' type='number' min='1' max='31' value='" + today + "' placeholder='" + today + "'></div></div>" +
+            "<div class='input-wrap'><input name='day' type='number' min='1' max='31' value='" + day + "' placeholder='" + day + "'></div></div>" +
             "<button type='submit' class='btn btn-lg btn-block'>确认存入</button>" +
             "</form></div>");
     }
@@ -951,7 +1001,7 @@ public class WebServer {
             "<title>" + title + "</title><style>" + css() + "</style>" +
             "<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();" +
             "function toggleTheme(){var e=document.documentElement;var t=e.getAttribute('data-theme')==='dark'?'light':'dark';e.setAttribute('data-theme',t);localStorage.setItem('theme',t);}</script>" +
-            "<style>.bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none}" +
+            "<style>.bg-canvas{position:fixed;top:0;left:0;z-index:-1;pointer-events:none}" +
             "[data-theme='light'] .bokeh-bg{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}" +
             "[data-theme='light'] .bokeh-bg .bg-soft{position:absolute;inset:0;background:" +
             "radial-gradient(40% 52% at 16% 20%,rgba(120,150,255,.22),transparent 70%)," +
@@ -966,45 +1016,81 @@ public class WebServer {
             "opacity:.2;filter:blur(28px)}" +
             "[data-theme='light'] .bokeh-bg .bg-bokeh i:last-child{width:420px;height:420px;left:-160px;bottom:-190px;" +
             "opacity:.16;filter:blur(32px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}" +
-            "[data-theme='dark'] .bokeh-bg{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}" +
-            "[data-theme='dark'] .bokeh-bg .bg-soft{position:absolute;inset:0;background:" +
-            "radial-gradient(40% 52% at 16% 20%,rgba(80,100,180,.15),transparent 70%)," +
-            "radial-gradient(34% 44% at 84% 14%,rgba(140,80,120,.12),transparent 72%)," +
-            "radial-gradient(42% 52% at 80% 84%,rgba(70,140,110,.14),transparent 72%)," +
-            "radial-gradient(36% 46% at 22% 88%,rgba(140,110,70,.10),transparent 72%)," +
-            "linear-gradient(135deg,#0a0a12,#0f0f1a)}" +
-            "[data-theme='dark'] .bokeh-bg .bg-bokeh{position:absolute;inset:0;--blob-a:#3a5ab0;--blob-b:#a03020}" +
-            "[data-theme='dark'] .bokeh-bg .bg-bokeh i{position:absolute;border-radius:50%;" +
-            "background:radial-gradient(circle at 50% 50%,var(--blob-a),transparent 70%);filter:blur(16px);opacity:.20}" +
-            "[data-theme='dark'] .bokeh-bg .bg-bokeh i:first-child{width:620px;height:620px;right:-190px;top:-260px;" +
-            "opacity:.15;filter:blur(32px)}" +
-            "[data-theme='dark'] .bokeh-bg .bg-bokeh i:last-child{width:420px;height:420px;left:-160px;bottom:-190px;" +
-            "opacity:.12;filter:blur(36px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}</style>" +
+            "[data-theme='dark'] .bokeh-bg{display:none}</style>" +
             "</head><body><div class='bokeh-bg'><i class='bg-soft'></i><i class='bg-bokeh'><i></i><i></i></i></div>" +
             "<canvas class='bg-canvas' id='bgCanvas'></canvas><main class='container'>" + body + "</main>" +
             "<script>!function(){var c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');" +
-            "var w,h;function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight}" +
+            "var _seed=parseInt(localStorage.getItem('bgSeed'));if(isNaN(_seed)){_seed=Math.floor(Math.random()*2147483647);localStorage.setItem('bgSeed',_seed)}" +
+            "var _initSeed=_seed;var voronoiCache=null;" +
+            "function _rng(){_seed=((_seed*1103515245+12345)&0x7fffffff);return _seed/0x7fffffff}" +
+            "function rnd(a,b){return _rng()*(b-a)+a}" +
+            "var w=0,h=0;function resize(){var nw=window.innerWidth,nh=window.innerHeight;if(nw===w&&nh===h)return;w=c.width=nw;h=c.height=nh;_seed=_initSeed;voronoiCache=null}" +
             "window.addEventListener('resize',resize);resize();" +
-            "function r(a,b){return Math.random()*(b-a)+a}" +
+
+            // === Voronoi 马赛克背景（深色模式专用，一次性渲染缓存） ===
+            "function renderVoronoi(sw,sh){" +
+            "var sc=4;var vw=Math.ceil(sw/sc),vh=Math.ceil(sh/sc);" +
+            "var oc=document.createElement('canvas');oc.width=vw;oc.height=vh;" +
+            "var ox=oc.getContext('2d');var img=ox.createImageData(vw,vh);var d=img.data;" +
+            // 生成种子点
+            "var pts=[];var np=Math.floor(vw*vh/180);" +
+            "for(var pi=0;pi<np;pi++){pts.push({x:rnd(0,vw),y:rnd(0,vh)})}" +
+            // 8色冷调色板（模板原色）
+            "var palette=[[22,24,39],[14,18,25],[19,19,24],[11,16,24],[27,27,32],[14,22,30],[18,20,25],[10,15,22]];" +
+            // 逐像素计算
+            "for(var py=0;py<vh;py++){for(var px=0;px<vw;px++){" +
+            "var md=1e9,md2=1e9;var ci=0;" +
+            "for(var k=0;k<pts.length;k++){" +
+            "var dx=px-pts[k].x,dy=py-pts[k].y;var dd=dx*dx+dy*dy;" +
+            "if(dd<md){md2=md;md=dd;ci=k}else if(dd<md2){md2=dd}}" +
+            // 取色
+            "var hi=(ci*2654435761&0x7fffffff)%palette.length;var cc=palette[hi];" +
+            // 边缘检测
+            "var edge=Math.sqrt(md2)-Math.sqrt(md);" +
+            "var bevel=Math.min(1,edge/3.5);" +
+            "var light=0.6+bevel*0.4;" +
+            // 边缘高光
+            "var eh=edge>0.5&&edge<3?(1-Math.abs(edge-1.75)/1.25)*0.06:0;" +
+            // 边缘暗化
+            "var es=edge<1.2?(1-edge/1.2)*0.35:0;" +
+            "var idx=(py*vw+px)*4;" +
+            "d[idx]=Math.min(255,(cc[0]*light+eh*255)*(1-es));" +
+            "d[idx+1]=Math.min(255,(cc[1]*light+eh*255)*(1-es));" +
+            "d[idx+2]=Math.min(255,(cc[2]*light+eh*255)*(1-es));" +
+            "d[idx+3]=255}}" +
+            "ox.putImageData(img,0,0);" +
+            // 缩放到全屏并缓存
+            "var fc=document.createElement('canvas');fc.width=sw;fc.height=sh;" +
+            "var fx=fc.getContext('2d');fx.imageSmoothingEnabled=true;fx.imageSmoothingQuality='high';" +
+            "fx.drawImage(oc,0,0,sw,sh);return fc}" +
+
+            // === 浅色模式粒子 ===
             "var lightPal=[['rgba(0,188,212,','rgba(0,140,170,'],['rgba(0,200,170,','rgba(0,155,130,'],['rgba(139,195,74,','rgba(100,160,40,'],['rgba(205,190,50,','rgba(165,150,30,'],['rgba(255,183,77,','rgba(210,145,40,']];" +
-            "var darkPal=[['rgba(100,180,255,','rgba(60,130,200,'],['rgba(80,220,180,','rgba(50,160,130,'],['rgba(160,210,90,','rgba(110,170,50,'],['rgba(230,200,70,','rgba(180,155,40,'],['rgba(255,160,80,','rgba(200,120,40,']];" +
             "var lb=[];var lm=Math.min(24,w>800?36:14);" +
-            "for(var i=0;i<lm;i++){var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);" +
-            "var depth=r(.4,1);lb.push({x:side+r(-20,20),y:r(0,h)," +
-            "s:r(20,50)+depth*90,sp:r(.08,.15)+depth*.35,op:r(.08,.12)+depth*.12," +
-            "ci:Math.floor(r(0,5)),vx:r(-.03,.03),depth:depth})}" +
+            "for(var i=0;i<lm;i++){var side=i%2===0?rnd(10,w*0.3):rnd(w*0.7,w-10);" +
+            "var depth=rnd(.4,1);lb.push({x:side+rnd(-20,20),y:rnd(0,h)," +
+            "s:rnd(20,50)+depth*90,sp:rnd(.08,.15)+depth*.35,op:rnd(.08,.12)+depth*.12," +
+            "ci:Math.floor(rnd(0,5)),vx:rnd(-.03,.03),depth:depth})}" +
+
+            // === 主绘制循环 ===
             "function draw(){var isDark=document.documentElement.getAttribute('data-theme')==='dark';" +
-            "var lpal=isDark?darkPal:lightPal;ctx.clearRect(0,0,w,h);" +
+            "ctx.clearRect(0,0,w,h);" +
+            "if(isDark){" +
+            // 深色模式：绘制缓存的 Voronoi 马赛克
+            "if(!voronoiCache){_seed=_initSeed;voronoiCache=renderVoronoi(w,h)}" +
+            "ctx.drawImage(voronoiCache,0,0)" +
+            "}else{" +
+            // 浅色模式：绘制漂浮粒子
             "for(var i=0;i<lb.length;i++){var b=lb[i];b.y-=b.sp;b.x+=b.vx;" +
             "var p=Math.min(1,Math.max(0,b.y/h));var op=b.op*p;var sz=b.s*p;" +
-            "if(b.y<-b.s*2){b.y=h+r(0,h*.3);var side=i%2===0?r(10,w*0.3):r(w*0.7,w-10);b.x=side+r(-20,20);" +
-            "b.s=r(20,50)+r(.4,1)*90;b.sp=r(.08,.15)+r(.2,.7);b.op=r(.08,.12)+r(.4,1)*.12;b.ci=Math.floor(r(0,5))}" +
+            "if(b.y<-b.s*2){b.y=h+rnd(0,h*.3);var side=i%2===0?rnd(10,w*0.3):rnd(w*0.7,w-10);b.x=side+rnd(-20,20);" +
+            "b.s=rnd(20,50)+rnd(.4,1)*90;b.sp=rnd(.08,.15)+rnd(.2,.7);b.op=rnd(.08,.12)+rnd(.4,1)*.12;b.ci=Math.floor(rnd(0,5))}" +
             "if(sz>6){var grd=ctx.createRadialGradient(b.x-sz*.15,b.y-sz*.15,0,b.x,b.y,sz/2);" +
             "var c1=b.ci;var c2=(b.ci+1)%5;" +
             "grd.addColorStop(0,'rgba(255,255,255,'+(op*.5).toFixed(3)+')');" +
-            "grd.addColorStop(.5,lpal[c1][0]+(op*.8).toFixed(3)+')');" +
-            "grd.addColorStop(1,lpal[c2][1]+(op*.6).toFixed(3)+')');" +
-            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,sz/2,0,Math.PI*2);ctx.fill()}}" +
+            "grd.addColorStop(.5,lightPal[c1][0]+(op*.8).toFixed(3)+')');" +
+            "grd.addColorStop(1,lightPal[c2][1]+(op*.6).toFixed(3)+')');" +
+            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,sz/2,0,Math.PI*2);ctx.fill()}}}" +
             "requestAnimationFrame(draw)}draw()}();</script>" +
             "</body></html>";
     }
@@ -1030,7 +1116,7 @@ public class WebServer {
     private static String css() {
         return
             // === CSS变量：浅色 ===
-            ":root,[data-theme='light']{" +
+            ":root,[data-theme='light']{color-scheme:light;" +
             "--space-xs:4px;--space-sm:8px;--space-md:16px;--space-lg:24px;--space-xl:32px;--space-2xl:48px;--space-3xl:64px;" +
             "--bg:#f2f3f8;--surface:#fff;--surface2:#f8f9fc;--elevated:#fff;" +
             "--text:#1e1e2e;--text2:#52526b;--border:#e2e2ec;" +
@@ -1041,6 +1127,7 @@ public class WebServer {
             "--shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);" +
             "--shadow-lg:0 4px 16px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);" +
             "--input-bg:#fff;--input-bd:#d4d4e0;--toggle-bg:#c8cad8;" +
+"--chevron:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2352526b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\");" +
             "--hover:rgba(79,110,247,.04);--nav-hover:rgba(79,110,247,.06);" +
             "--glow-top:rgba(79,110,247,.04);--glow-bottom:rgba(245,158,11,.03);" +
             "--title-g1:#4f6ef7;--title-g2:#7c3aed;--title-g3:#d97706;" +
@@ -1049,7 +1136,7 @@ public class WebServer {
             "--ease-out:cubic-bezier(.16,1,.3,1);--ease-in-out:cubic-bezier(.4,0,.2,1)}" +
 
             // === CSS变量：深色 ===
-            "[data-theme='dark']{" +
+            "[data-theme='dark']{color-scheme:dark;" +
             "--bg:#0d0d1a;--surface:#16162b;--surface2:#1c1c34;--elevated:#222242;" +
             "--text:#e2e2ee;--text2:#8e8eaa;--border:#282850;" +
             "--accent:#7b9bff;--accent-h:#9bb5ff;--accent-light:rgba(123,155,255,.1);" +
@@ -1059,6 +1146,7 @@ public class WebServer {
             "--shadow:0 1px 4px rgba(0,0,0,.3);" +
             "--shadow-lg:0 4px 16px rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.2);" +
             "--input-bg:#1a1a35;--input-bd:#32325a;--toggle-bg:#4f6ef7;" +
+"--chevron:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8eaa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\");" +
             "--hover:rgba(123,155,255,.06);--nav-hover:rgba(123,155,255,.08);" +
             "--glow-top:rgba(123,155,255,.06);--glow-bottom:rgba(139,92,246,.04);" +
             "--title-g1:#a5b4fc;--title-g2:#c4b5fd;--title-g3:#fcd34d;" +
@@ -1066,6 +1154,19 @@ public class WebServer {
 
             // === 基础 ===
             "*{margin:0;padding:0;box-sizing:border-box}" +
+
+            // === 声明可过渡的 CSS 属性（主题渐变核心） ===
+            "@property--bg{syntax:'<color>';inherits:initial;initial-value:#f2f3f8}" +
+            "@property--surface{syntax:'<color>';inherits:initial;initial-value:#fff}" +
+            "@property--surface2{syntax:'<color>';inherits:initial;initial-value:#f8f9fc}" +
+            "@property--text{syntax:'<color>';inherits:initial;initial-value:#1e1e2e}" +
+            "@property--text2{syntax:'<color>';inherits:initial;initial-value:#52526b}" +
+            "@property--border{syntax:'<color>';inherits:initial;initial-value:#e2e2ec}" +
+            "@property--accent{syntax:'<color>';inherits:initial;initial-value:#4f6ef7}" +
+            "@property--shadow{syntax:'<shadow>';inherits:initial;initial-value:0 1px 3px rgba(0,0,0,.06)}" +
+            "@property--shadow-lg{syntax:'<shadow>';inherits:initial;initial-value:0 4px 16px rgba(0,0,0,.08)}" +
+            "@property--input-bg{syntax:'<color>';inherits:initial;initial-value:#fff}" +
+            "@property--input-bd{syntax:'<color>';inherits:initial;initial-value:#d4d4e0}" +
             "body{font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;" +
             "background:var(--bg);color:var(--text);min-height:100vh;" +
             "font-weight:350;line-height:1.6;position:relative;" +
@@ -1077,6 +1178,10 @@ public class WebServer {
             "opacity:.035;background-image:url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\");background-size:200px 200px}" +
             "main.container{position:relative;z-index:1}" +
             ".container{max-width:860px;margin:0 auto;padding:var(--space-lg)}" +
+            ".hero-cards,.card,.stat,.form-card,.edit-box,.login-box,.prob-card,.query-section," +
+            "table,.input-wrap input,.input-wrap select,.btn,.filter-pill,.radio-pill .pill-text" +
+            "{transition:background .4s var(--ease-out),color .4s var(--ease-out)," +
+            "border-color .4s var(--ease-out),box-shadow .4s var(--ease-out)}" +
 
             // === 顶部栏 ===
             ".top-bar{display:flex;align-items:center;gap:var(--space-sm);" +
@@ -1179,6 +1284,12 @@ public class WebServer {
             "border-radius:var(--radius);font-size:14px;margin-bottom:var(--space-md);" +
             "outline:none;transition:all .2s var(--ease-out);" +
             "background:var(--input-bg);color:var(--text);font-family:inherit}" +
+            "select{appearance:none;-webkit-appearance:none;cursor:pointer;" +
+            "padding:13px 40px 13px 16px;font-size:15px;font-weight:450;" +
+            "background-image:var(--chevron);background-repeat:no-repeat;" +
+            "background-position:right 15px center;background-size:13px}" +
+            "select:hover{border-color:var(--accent)}" +
+            "select option{background:var(--input-bg);color:var(--text)}" +
             "input:focus,select:focus{border-color:var(--accent);" +
             "box-shadow:0 0 0 3px var(--accent-light);transform:translateY(-1px)}" +
             "label{display:block;margin-bottom:var(--space-xs);color:var(--text);" +
@@ -1273,10 +1384,14 @@ public class WebServer {
             ".input-wrap{position:relative;display:flex;align-items:center}" +
             ".input-wrap .input-icon{position:absolute;left:14px;color:var(--text2);" +
             "pointer-events:none;transition:color .2s var(--ease-out)}" +
-            ".input-wrap input{padding:13px 14px 13px 42px;font-size:15px;width:100%;border:1.5px solid var(--input-bd);" +
+            ".input-wrap input,.input-wrap select{font-size:15px;width:100%;border:1.5px solid var(--input-bd);" +
             "border-radius:var(--radius);background:var(--input-bg);color:var(--text);" +
             "font-family:inherit;outline:none;transition:all .25s var(--ease-out);margin-bottom:0}" +
-            ".input-wrap input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-light)}" +
+            ".input-wrap input{padding:13px 14px 13px 42px}" +
+            ".input-wrap select{padding:13px 40px 13px 16px;appearance:none;-webkit-appearance:none;" +
+            "cursor:pointer;background-image:var(--chevron);background-repeat:no-repeat;" +
+            "background-position:right 15px center;background-size:13px}" +
+            ".input-wrap input:focus,.input-wrap select:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-light)}" +
             "" +
             ".input-wrap:focus-within .input-icon{color:var(--accent)}" +
             // === 大按钮 ===
