@@ -98,8 +98,6 @@ static/
 └── ascii-ocean.js         # ASCII 海洋背景引擎（移植自 dsh-ascii-ocean，MIT）
 ```
 
-## 界面预览
+## 致谢与许可
 
-![](screenshots/1.png)
-
-*智能问候封面 — 根据时段自动切换问候语与配色*
+- 背景引擎 `static/ascii-ocean.js` 移植自 DSH 插件 **dsh-ascii-ocean**（MIT 许可），已剥离其模块加载器与 React 挂载，仅保留 `OceanEngine` / `World` / `AsciiRenderer` 三个渲染类。原插件版权归原作者所有，本仓库仅作本地界面使用。
