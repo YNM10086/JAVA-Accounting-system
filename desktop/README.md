@@ -51,14 +51,20 @@ npm start
 
 ## 图标
 
-图标由 `tools/icon/IconGen.java` 原创绘制（深海底色 + 暖色灯火 + 两道海平线），不依赖任何外部素材：
+图标由 `tools/icon/IconGen.java` 原创绘制（深海底色 + 暖色几何图形），不依赖任何外部素材。三种风格：
+
+| 风格 | 图形 | 说明 |
+|---|---|---|
+| `a`（默认） | 实心圆 + 三道同心圆环 | 光晕 / 涟漪，最抽象 |
+| `b` | 实心圆 + 下方三道同心弧 | 日落与水面倒影 |
+| `c` | 实心圆 + 水平线 + 半圆弧 | 极简地平线 |
 
 ```powershell
 javac -encoding UTF-8 -d .build_tmp/icon tools/icon/IconGen.java
-java -cp .build_tmp/icon IconGen desktop/build/icon.ico
+java -cp .build_tmp/icon IconGen desktop/build/icon.ico a
 ```
 
-生成 `icon.ico`（16/24/32/48/64/128/256）和 `icon.png`。
+生成 `icon.ico`（16/24/32/48/64/128/256）、`icon.png`（256px 预览）和 `icon-sizes.png`（各尺寸对照）。换风格只改最后一个参数。
 
 ## 已知限制
 

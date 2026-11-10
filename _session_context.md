@@ -13,7 +13,7 @@
   - `src/function/Date_time.java` — 日期时间工具
   - `src/function/Line.java` — 折线图生成（JDK Graphics2D）
   - `src/function/Archiver.java` — 跨年自动归档（标记文件 `records/.current_year`，跨年导出 Excel 后清表）
-  - `static/` — 静态资源目录（`xlsx.full.min.js` 导出库、`html2canvas`、`gsap`、`ascii-ocean.js` 海洋背景引擎）
+  - `static/` — 静态资源目录（`xlsx.full.min.js` 导出库、`html2canvas`、`gsap`、`ascii-ocean.js` 海洋背景引擎、`soft-nav.js` 软导航）
   - `lib/` — 依赖 jar（MySQL Connector、Apache POI；POI 供归档用）
   - `out/` — 编译输出
   - `desktop/` — Electron 桌面版（`main.js` 起 Java 子进程并开窗口、`build.ps1` 出 NSIS 安装包、`build/icon.ico` 图标）
@@ -37,7 +37,6 @@
 
 ### 项目功能
 - [ ] 接入本地 Ollama AI — 默认不常开，留一个小按键；点开输入一段话，自动解析成分项并写入数据库（提出于 2026-11-10）
-- [ ] 软导航（SPA 式背景连贯）— 点卡片整页重载会让海洋背景重置，计划拦站内 GET 链接、fetch + 替换 `<main>`，POST 暂不接管（待用户确认，提出于 2026-11-10）
 
 ### 通用工具想法
 <!-- - [ ] 工具名 — 想解决什么（提出于 yyyy-mm-dd） -->

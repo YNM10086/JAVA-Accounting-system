@@ -1037,7 +1037,9 @@ public class WebServer {
         return "<!DOCTYPE html><html lang='zh' data-theme='dark'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>" +
             "<title>" + title + "</title><style>" + css() + "</style>" +
             "<style>html{background:#05080f}body{background:transparent}" +
-            ".ocean-bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;display:block;pointer-events:none}</style>" +
+            ".ocean-bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;display:block;pointer-events:none}" +
+            "#lohNavBar{position:fixed;top:0;left:0;height:2px;width:0;opacity:0;z-index:9999;pointer-events:none;" +
+            "background:linear-gradient(90deg,#6f9bff,#a9c2ff);box-shadow:0 0 8px rgba(111,155,255,.6)}</style>" +
             "</head><body>" +
             "<canvas class='ocean-bg' id='oceanBg' aria-hidden='true'></canvas>" +
             "<main class='container'>" + body + "</main>" +
@@ -1048,6 +1050,7 @@ public class WebServer {
             "eng.setSettings({heroOpacity:.7,idleOpacity:.7,background:'#05080f',grid:.03,dotDensity:.1});" +
             "eng.start();window.addEventListener('beforeunload',function(){eng.destroy()});" +
             "}();</script>" +
+            "<script src='/static/soft-nav.js'></script>" +
             "</body></html>";
     }
 
