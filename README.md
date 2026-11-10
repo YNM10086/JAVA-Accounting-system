@@ -115,6 +115,15 @@ tools/
 
 安装包自带精简 JRE 与全部依赖，装完双击即可使用，不需要另装 Java、也不需要开浏览器。
 
+更新走 GitHub Releases：应用启动后自动检查新版本，发现后点两下即可下载、重启、静默安装。发新版：
+
+```powershell
+$env:GH_TOKEN='ghp_xxx'
+.\desktop\build.ps1 -Version 1.0.1 -Publish
+```
+
+也可以直接双击新的安装包覆盖安装，数据和安装目录都会保留。详见 [desktop/README.md](desktop/README.md)。
+
 ## 致谢与许可
 
 - 背景引擎 `static/ascii-ocean.js` 移植自 DSH 插件 **dsh-ascii-ocean**（MIT 许可），已剥离其模块加载器与 React 挂载，仅保留 `OceanEngine` / `World` / `AsciiRenderer` 三个渲染类。原插件版权归原作者所有，本仓库仅作本地界面使用。

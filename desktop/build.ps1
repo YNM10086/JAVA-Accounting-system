@@ -1,13 +1,16 @@
 ﻿<#
 .SYNOPSIS
-  构建「人间烟火」桌面版：编译 Java → 复制资源 → 打包 JRE → 出 NSIS 安装包。
+  构建「人间烟火」桌面版：编译 Java → 复制资源 → 打包 JRE → 出 NSIS 安装包（可选发布到 GitHub Releases）。
 
 .EXAMPLE
-  .\build.ps1                 # 完整构建
-  .\build.ps1 -SkipJre        # 不打包 JRE（要求目标机已装 JDK 17+）
-  .\build.ps1 -SkipNpm        # 依赖已装，跳过 npm install
+  .\build.ps1                          # 完整构建，版本号不变
+  .\build.ps1 -Version 1.0.1           # 改版本号后构建
+  .\build.ps1 -Version 1.0.1 -Publish  # 构建并发布到 GitHub Releases（需 GH_TOKEN）
+  .\build.ps1 -SkipJre -SkipNpm        # 快速构建（依赖与 JRE 已就绪时）
 #>
 param(
+    [string]$Version,
+    [switch]$Publish,
     [switch]$SkipJre,
     [switch]$SkipNpm
 )
@@ -21,6 +24,16 @@ $classes = Join-Path $runtime 'classes'
 $libDst = Join-Path $runtime 'lib'
 $staticDst = Join-Path $runtime 'static'
 $jre = Join-Path $runtime 'jre'
+
+# ---------- 0/6 版本号 ----------
+if ($Version) {
+    if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "版本号格式应为 1.2.3，收到：$Version" }
+    $pkgPath = Join-Path $desktop 'package.json'
+    $raw = [IO.File]::ReadAllText($pkgPath, [Text.Encoding]::UTF8)
+    $new = [regex]::Replace($raw, '("version"\s*:\s*")[^"]+(")', '${1}' + $Version + '${2}')
+    [IO.File]::WriteAllText($pkgPath, $new, (New-Object Text.UTF8Encoding($false)))
+    Write-Host "== 版本号 -> $Version ==" -ForegroundColor Cyan
+}
 
 Write-Host '== 1/5 编译 Java ==' -ForegroundColor Cyan
 Remove-Item -Recurse -Force $classes -ErrorAction SilentlyContinue
@@ -57,7 +70,15 @@ try {
     Write-Host '== 5/5 打包安装程序 ==' -ForegroundColor Cyan
     $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
     $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
-    npm run dist
+
+    if ($Publish) {
+        if (-not $env:GH_TOKEN) {
+            throw "发布到 GitHub Releases 需要 GH_TOKEN 环境变量（Personal Access Token，勾选 repo 权限）。`n先执行：`$env:GH_TOKEN='ghp_xxx'"
+        }
+        npx electron-builder --win nsis --x64 --publish always
+    } else {
+        npx electron-builder --win nsis --x64 --publish never
+    }
     if ($LASTEXITCODE -ne 0) { throw 'electron-builder 打包失败' }
 } finally {
     Pop-Location
@@ -67,3 +88,8 @@ $dist = Join-Path $desktop 'dist'
 Get-ChildItem $dist -File | Sort-Object Length -Descending |
     Select-Object Name, @{n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } |
     Format-Table -AutoSize
+
+if ($Publish) {
+    Write-Host '已上传到 GitHub Releases：https://github.com/YNM10086/JAVA-Accounting-system/releases' -ForegroundColor Green
+    Write-Host '（首次发布的 release 记得确认不是 Draft 状态，否则应用检查更新看不到它）'
+}

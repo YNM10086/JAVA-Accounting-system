@@ -32,13 +32,49 @@ npm start
 ## 打包
 
 ```powershell
-.\desktop\build.ps1
+.\desktop\build.ps1                        # 版本号不变
+.\desktop\build.ps1 -Version 1.0.1         # 改版本号后打包
+.\desktop\build.ps1 -Version 1.0.1 -Publish  # 打包并发布到 GitHub Releases
 ```
 
 产物在 `desktop/dist/`：
 
-- `TheLightOfHumanity-1.0.0-setup.exe` — NSIS 安装包（可选安装目录、建桌面/开始菜单快捷方式）
+- `TheLightOfHumanity-<版本>-setup.exe` — NSIS 安装包（可选安装目录、建桌面/开始菜单快捷方式）
 - `win-unpacked/` — 免安装目录
+- `latest.yml` — 自动更新用的版本清单（发布时一起上传）
+
+## 更新
+
+两种方式，互不冲突。
+
+### 自动更新（应用内点两下）
+
+应用启动 5 秒后会静默查询 GitHub Releases：
+
+1. 发现新版本 → 弹窗「发现新版本 vX，下载并安装 / 稍后」
+2. 选下载 → 显示进度（窗口标题 + 任务栏进度条）→ 下载完校验 sha512
+3. 弹窗「立即重启并安装 / 下次启动再装」→ 选立即 → 程序退出、静默安装、自动拉起新版本
+
+数据在 `%APPDATA%\人间烟火\data`，升级不碰。
+
+**发布新版本**：
+
+```powershell
+$env:GH_TOKEN='ghp_xxx'          # Personal Access Token，勾 repo 权限
+.\desktop\build.ps1 -Version 1.0.1 -Publish
+```
+
+`-Publish` 会自动在 `YNM10086/JAVA-Accounting-system` 建 release 并上传安装包、blockmap、`latest.yml`。装着的旧版本下次启动就能收到。
+
+### 手动更新（覆盖安装）
+
+拿到新的 `setup.exe`，双击 → 下一步 → 完成。安装目录会被记住，快捷方式和数据都保留。
+
+### 为什么不用 electron-updater
+
+electron-updater 从 `github.com/.../releases/download/...` 拉资产，该域名在部分网络下直连超时。这里改成走 `api.github.com` 的资产地址（`Accept: application/octet-stream`），由 GitHub 302 到 `release-assets.githubusercontent.com`，实测可正常下载。逻辑在 `main.js` 的「自动更新」段，无第三方依赖。
+
+排查更新问题看日志：`%APPDATA%\人间烟火\desktop.log`。
 
 ## 运行机制
 

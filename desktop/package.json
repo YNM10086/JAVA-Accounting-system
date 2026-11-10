@@ -50,6 +50,12 @@
       "icon": "build/icon.ico",
       "artifactName": "TheLightOfHumanity-${version}-setup.${ext}"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "YNM10086",
+      "repo": "JAVA-Accounting-system",
+      "releaseType": "release"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,

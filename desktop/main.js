@@ -1,9 +1,10 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, net } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 
 const APP_ID = 'com.lightofhumanity.desktop';
 const isDev = !app.isPackaged;
@@ -27,8 +28,17 @@ function dataRoot() {
   return path.join(app.getPath('userData'), 'data');
 }
 
-function resolveJava(runtime) {
-  const bundled = path.join(runtime, 'jre', 'bin', 'java.exe');
+function log(msg) {
+  try {
+    const dir = app.getPath('userData');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'desktop.log'), `[${new Date().toISOString()}] ${msg}\n`);
+  } catch (_) {
+    /* 日志失败不影响主流程 */
+  }
+}
+
+function resolveJava(runtime) {  const bundled = path.join(runtime, 'jre', 'bin', 'java.exe');
   if (fs.existsSync(bundled)) return bundled;
   if (process.env.JAVA_HOME) {
     const fromHome = path.join(process.env.JAVA_HOME, 'bin', 'java.exe');
@@ -197,6 +207,192 @@ function bindPageGuards(baseUrl) {
   });
 }
 
+/* ---------------- 自动更新（GitHub Releases，走 API 资产地址） ----------------
+ * 不用 electron-updater：它会去 github.com/releases/download 拉资产，该域名在
+ * 部分网络下不可达。这里改用 api.github.com 的资产地址（Accept: octet-stream），
+ * 由 GitHub 302 到 release-assets.githubusercontent.com，实测可正常下载。
+ */
+
+const UPDATE_API = 'https://api.github.com/repos/YNM10086/JAVA-Accounting-system/releases/latest';
+const SETUP_RE = /^TheLightOfHumanity-.*-setup\.exe$/i;
+
+let updateBusy = false;
+
+function parseVersion(v) {
+  return String(v || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+}
+
+function isNewer(remote, local) {
+  const a = parseVersion(remote);
+  const b = parseVersion(local);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
+}
+
+async function fetchLatestRelease() {
+  const res = await net.fetch(UPDATE_API, { headers: { Accept: 'application/vnd.github+json' } });
+  if (res.status === 404) return null;               // 还没发过 release
+  if (!res.ok) throw new Error('GitHub API HTTP ' + res.status);
+  const rel = await res.json();
+  const version = String(rel.tag_name || '').replace(/^v/i, '');
+  if (!version || !isNewer(version, app.getVersion())) return null;
+
+  const assets = rel.assets || [];
+  const setup = assets.find((a) => SETUP_RE.test(a.name));
+  if (!setup) throw new Error('release 里没有安装包资产');
+  const meta = assets.find((a) => a.name === 'latest.yml') || null;
+  return { version, setup, meta };
+}
+
+async function readAssetText(asset) {
+  const res = await net.fetch(asset.url, { headers: { Accept: 'application/octet-stream' } });
+  if (!res.ok) throw new Error('读取 ' + asset.name + ' 失败 HTTP ' + res.status);
+  return res.text();
+}
+
+/** 流式下载并计算 sha512（base64），返回 { size, sha512 } */
+async function downloadAsset(asset, dest) {
+  const res = await net.fetch(asset.url, { headers: { Accept: 'application/octet-stream' } });
+  if (!res.ok) throw new Error('下载失败 HTTP ' + res.status);
+
+  const total = Number(res.headers.get('content-length')) || asset.size || 0;
+  const hash = crypto.createHash('sha512');
+  const out = fs.createWriteStream(dest);
+  const reader = res.body.getReader();
+  let done = 0;
+
+  for (;;) {
+    const { done: end, value } = await reader.read();
+    if (end) break;
+    const chunk = Buffer.from(value);
+    hash.update(chunk);
+    done += chunk.length;
+    if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
+
+    if (total) {
+      const pct = Math.min(1, done / total);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setProgressBar(pct);
+        if (done % (4 * 1024 * 1024) < chunk.length) {
+          barNotify(`正在下载更新 ${Math.round(pct * 100)}%`);
+        }
+      }
+    }
+  }
+
+  await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())));
+  return { size: done, sha512: hash.digest('base64') };
+}
+
+/** 退出后用独立脚本静默安装，装完再拉起新版本 */
+function applyUpdate(file) {
+  const safe = (s) => s.replace(/'/g, "''");
+  const script = path.join(path.dirname(file), 'apply-update.ps1');
+  const ps = [
+    "$ErrorActionPreference='SilentlyContinue'",
+    `for($i=0;$i -lt 240;$i++){ if(-not (Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue)){ break }; Start-Sleep -Milliseconds 500 }`,
+    `Start-Process -FilePath '${safe(file)}' -ArgumentList '/S' -Wait`,
+    `Start-Process -FilePath '${safe(process.execPath)}'`,
+  ].join('\r\n');
+  fs.writeFileSync(script, ps, 'utf8');
+
+  spawn('powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script],
+    { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+
+  quitting = true;
+  killJava();
+  app.quit();
+}
+
+function setupUpdater() {
+  if (!app.isPackaged) return;
+
+  setTimeout(async () => {
+    if (updateBusy) return;
+    updateBusy = true;
+    try {
+      const info = await fetchLatestRelease();
+      if (!info) {
+        log('update: no newer release');
+        updateBusy = false;
+        return;
+      }
+      log('update available: ' + info.version);
+
+      const mb = Math.round((info.setup.size || 0) / (1024 * 1024));
+      const ask = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        buttons: ['下载并安装', '稍后'],
+        defaultId: 0,
+        cancelId: 1,
+        title: '发现新版本',
+        message: `发现新版本 v${info.version}`,
+        detail: `当前 v${app.getVersion()}${mb ? `，安装包约 ${mb} MB` : ''}。下载完成后会提示重启安装，账本数据不受影响。`,
+      });
+      if (ask.response !== 0) {
+        updateBusy = false;
+        return;
+      }
+
+      const dir = path.join(app.getPath('temp'), 'loh-update');
+      fs.mkdirSync(dir, { recursive: true });
+      const target = path.join(dir, info.setup.name);
+
+      log('downloading update to ' + target);
+      const got = await downloadAsset(info.setup, target);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1);
+
+      if (info.meta) {
+        try {
+          const yml = await readAssetText(info.meta);
+          const m = /sha512:\s*([A-Za-z0-9+/=]+)/.exec(yml);
+          if (m && m[1] !== got.sha512) {
+            fs.rmSync(target, { force: true });
+            throw new Error('安装包校验失败（sha512 不匹配）');
+          }
+        } catch (e) {
+          if (String(e.message).indexOf('校验失败') >= 0) throw e;
+          log('update: sha512 skipped: ' + e.message);
+        }
+      }
+
+      log('update downloaded: ' + got.size + ' bytes');
+      const done = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        buttons: ['立即重启并安装', '下次启动再装'],
+        defaultId: 0,
+        cancelId: 1,
+        title: '更新已就绪',
+        message: `v${info.version} 下载完成`,
+        detail: '立即重启会关闭程序并静默安装，账本数据不会丢失。',
+      });
+      if (done.response === 0) {
+        applyUpdate(target);
+      } else {
+        updateBusy = false;
+      }
+    } catch (e) {
+      log('update failed: ' + (e && e.message));
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1);
+      updateBusy = false;
+    }
+  }, 5000);
+}
+
+/** 用窗口标题临时提示（不引入额外 UI） */
+function barNotify(text) {
+  if (!mainWindow) return;
+  const old = mainWindow.getTitle();
+  mainWindow.setTitle(text);
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitle(old);
+  }, 4000);
+}
+
 /* ---------------- 生命周期 ---------------- */
 
 async function boot() {
@@ -206,7 +402,10 @@ async function boot() {
     if (!mainWindow) return;
     bindPageGuards(url);
     await mainWindow.loadURL(url);
+    log('ready: ' + url);
+    setupUpdater();
   } catch (err) {
+    log('boot failed: ' + (err && err.message ? err.message : err));
     dialog.showErrorBox('人间烟火启动失败', String(err && err.message ? err.message : err));
     app.quit();
   }
