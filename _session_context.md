@@ -1,7 +1,7 @@
-# The_Light_Of_Humanity — 会话记忆
+# Bookkeeping System — 会话记忆
 
 ## 项目简述
-个人消费记录系统（JAVA-Accounting-system）：Java 17 + JDK HttpServer 后端，控制台菜单与 HTML/CSS/JS + Canvas 前端（前端内联于 WebServer.java），MySQL 存 `Cost_system` 库（每月一张 `table_XX`）。功能：消费存入、查询统计、折线图、预算管控、Excel 导出、ASCII 海洋动态背景、时段问候封面、跨年自动归档。已用 Electron 套壳成可双击安装的桌面版。
+个人消费记录系统（Bookkeeping System）：Java 17 + JDK HttpServer 后端，控制台菜单与 HTML/CSS/JS + Canvas 前端（前端内联于 WebServer.java），MySQL 存 `Cost_system` 库（每月一张 `table_XX`）。功能：消费存入、查询统计、折线图、预算管控、Excel 导出、ASCII 海洋动态背景、时段问候封面、跨年自动归档。已用 Electron 套壳成可双击安装的桌面版。
 
 ## 工作流
 - 技术栈/入口：Java 17（MySQL Connector + Apache POI 在 `lib/`），IDEA 打开后运行 `src/System/The_main.java` 的 `main()`，启动后浏览器自动打开 http://localhost:8080

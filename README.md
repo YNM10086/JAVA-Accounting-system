@@ -1,4 +1,4 @@
-# JAVA-Accounting-system
+# Bookkeeping System
 
 个人消费记录系统 — 基于 Java 的 Web 应用，支持日常消费记账、消费趋势分析、预算管控等功能。
 
