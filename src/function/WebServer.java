@@ -250,29 +250,7 @@ public class WebServer {
         } finally { conn.close(); }
         sb.append("</section>");
 
-        // === 二、折线图 ===
-        sb.append("<section class='query-section'><h3>每日趋势</h3><p class='hint'>仅统计日常消费（num_1=1）</p>");
-        Connection conn2 = One.getConn();
-        if (conn2 != null) {
-            try {
-                PreparedStatement ps2 = One.getPreparedStmt(conn2,
-                    "SELECT date, SUM(price) FROM " + table + " WHERE num_1=1 GROUP BY date ORDER BY date");
-                ResultSet rs2 = ps2.executeQuery();
-                List<Integer> days = new ArrayList<>();
-                List<Double> totals = new ArrayList<>();
-                while (rs2.next()) { days.add(rs2.getInt(1)); totals.add(rs2.getDouble(2)); }
-                rs2.close(); ps2.close();
-                if (!days.isEmpty()) {
-                    Line.drawLineChart(days, totals, table);
-                    sb.append("<img src='/chart-img?f=").append(table).append("_chart.png' class='chart-img' alt='").append(selMonth).append("月每日消费折线图' onerror=\"this.outerHTML='<p>图片加载失败</p>'\">");
-                } else {
-                    sb.append("<p>暂无数据。</p>");
-                }
-            } finally { conn2.close(); }
-        }
-        sb.append("</section>");
-
-        // === 二·B、日常 vs 特殊 对比折线图 ===
+        // === 二、日常 vs 特殊 对比折线图 ===
         sb.append("<section class='query-section'><h3>日常 vs 特殊趋势</h3>");
         sb.append("<p class='hint'>红线 = 日常消费（num_1=1），蓝线 = 特殊消费（num_1=2）</p>");
         Connection connCmp = One.getConn();
