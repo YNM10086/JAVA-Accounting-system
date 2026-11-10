@@ -8,7 +8,7 @@
 - **消费查询** — 月度统计、日均消费、每日明细、折线图趋势（日常趋势 + 日常/特殊双线对比）
 - **消费管控** — 预算监控、赤字概率评估、预计超额预警
 - **Excel 导出** — 一键导出月度消费数据
-- **主题切换** — 浅色/深色双模式
+- **动态背景** — ASCII 海洋（鲨鱼 / 鱼群）铺底，暗色单一主题，卡片玻璃质感
 - **智能封面** — 根据时段自动切换问候语（凌晨/早上/上午/中午/下午/晚上/深夜）
 
 ## 技术栈
@@ -19,7 +19,7 @@
 | 前端 | HTML / CSS / JavaScript + Canvas |
 | 数据库 | MySQL |
 | 图表 | JDK Graphics2D 自绘折线图 |
-| 动画 | Canvas 粒子系统 + CSS Animations |
+| 动画 | Canvas ASCII 海洋（`static/ascii-ocean.js`）+ CSS Animations |
 
 ## 快速开始
 
@@ -94,6 +94,8 @@ src/
     ├── Line.java          # 折线图生成
     ├── Menu.java          # 终端菜单（保留兼容）
     └── WebServer.java     # Web 服务器 + 所有页面逻辑
+static/
+└── ascii-ocean.js         # ASCII 海洋背景引擎（移植自 dsh-ascii-ocean，MIT）
 ```
 
 ## 界面预览

@@ -1024,115 +1024,25 @@ public class WebServer {
             "<path d='M19 12H5M12 19l-7-7 7-7'/></svg>" +
             "<span>首页</span></a>" +
             "<div class='top-bar-spacer'></div>" +
-            themeToggle() +
             "</div></header>" + body);
     }
 
     private static String pageRaw(String title, String body) {
-        return "<!DOCTYPE html><html lang='zh' data-theme='light'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>" +
+        return "<!DOCTYPE html><html lang='zh' data-theme='dark'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>" +
             "<title>" + title + "</title><style>" + css() + "</style>" +
-            "<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();" +
-            "function toggleTheme(){var e=document.documentElement;var t=e.getAttribute('data-theme')==='dark'?'light':'dark';e.setAttribute('data-theme',t);localStorage.setItem('theme',t);}</script>" +
-            "<style>.bg-canvas{position:fixed;top:0;left:0;z-index:-1;pointer-events:none}" +
-            "[data-theme='light'] .bokeh-bg{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}" +
-            "[data-theme='light'] .bokeh-bg .bg-soft{position:absolute;inset:0;background:" +
-            "radial-gradient(40% 52% at 16% 20%,rgba(120,150,255,.22),transparent 70%)," +
-            "radial-gradient(34% 44% at 84% 14%,rgba(255,150,195,.18),transparent 72%)," +
-            "radial-gradient(42% 52% at 80% 84%,rgba(110,212,172,.20),transparent 72%)," +
-            "radial-gradient(36% 46% at 22% 88%,rgba(245,202,128,.16),transparent 72%)," +
-            "linear-gradient(135deg,#eef0f5,#e6e7ee)}" +
-            "[data-theme='light'] .bokeh-bg .bg-bokeh{position:absolute;inset:0;--blob-a:#5b8def;--blob-b:#e8503a}" +
-            "[data-theme='light'] .bokeh-bg .bg-bokeh i{position:absolute;border-radius:50%;" +
-            "background:radial-gradient(circle at 50% 50%,var(--blob-a),transparent 70%);filter:blur(12px);opacity:.28}" +
-            "[data-theme='light'] .bokeh-bg .bg-bokeh i:first-child{width:620px;height:620px;right:-190px;top:-260px;" +
-            "opacity:.2;filter:blur(28px)}" +
-            "[data-theme='light'] .bokeh-bg .bg-bokeh i:last-child{width:420px;height:420px;left:-160px;bottom:-190px;" +
-            "opacity:.16;filter:blur(32px);background:radial-gradient(circle at 50% 50%,var(--blob-b),transparent 70%)}" +
-            "[data-theme='dark'] .bokeh-bg{display:none}</style>" +
-            "</head><body><div class='bokeh-bg'><i class='bg-soft'></i><i class='bg-bokeh'><i></i><i></i></i></div>" +
-            "<canvas class='bg-canvas' id='bgCanvas'></canvas><main class='container'>" + body + "</main>" +
-            "<script>!function(){var c=document.getElementById('bgCanvas'),ctx=c.getContext('2d');" +
-            "var _seed=parseInt(localStorage.getItem('bgSeed'));if(isNaN(_seed)){_seed=Math.floor(Math.random()*2147483647);localStorage.setItem('bgSeed',_seed)}" +
-            "var _initSeed=_seed;var voronoiCache=null;" +
-            "function _rng(){_seed=((_seed*1103515245+12345)&0x7fffffff);return _seed/0x7fffffff}" +
-            "function rnd(a,b){return _rng()*(b-a)+a}" +
-            "var w=0,h=0;function resize(){var nw=window.innerWidth,nh=window.innerHeight;if(nw===w&&nh===h)return;w=c.width=nw;h=c.height=nh;_seed=_initSeed;voronoiCache=null}" +
-            "window.addEventListener('resize',resize);resize();" +
-
-            // === Voronoi 马赛克背景（深色模式专用，一次性渲染缓存） ===
-            "function renderVoronoi(sw,sh){" +
-            "var sc=4;var vw=Math.ceil(sw/sc),vh=Math.ceil(sh/sc);" +
-            "var oc=document.createElement('canvas');oc.width=vw;oc.height=vh;" +
-            "var ox=oc.getContext('2d');var img=ox.createImageData(vw,vh);var d=img.data;" +
-            // 生成种子点
-            "var pts=[];var np=Math.floor(vw*vh/180);" +
-            "for(var pi=0;pi<np;pi++){pts.push({x:rnd(0,vw),y:rnd(0,vh)})}" +
-            // 8色冷调色板（模板原色）
-            "var palette=[[22,24,39],[14,18,25],[19,19,24],[11,16,24],[27,27,32],[14,22,30],[18,20,25],[10,15,22]];" +
-            // 逐像素计算
-            "for(var py=0;py<vh;py++){for(var px=0;px<vw;px++){" +
-            "var md=1e9,md2=1e9;var ci=0;" +
-            "for(var k=0;k<pts.length;k++){" +
-            "var dx=px-pts[k].x,dy=py-pts[k].y;var dd=dx*dx+dy*dy;" +
-            "if(dd<md){md2=md;md=dd;ci=k}else if(dd<md2){md2=dd}}" +
-            // 取色
-            "var hi=(ci*2654435761&0x7fffffff)%palette.length;var cc=palette[hi];" +
-            // 边缘检测
-            "var edge=Math.sqrt(md2)-Math.sqrt(md);" +
-            "var bevel=Math.min(1,edge/3.5);" +
-            "var light=0.6+bevel*0.4;" +
-            // 边缘高光
-            "var eh=edge>0.5&&edge<3?(1-Math.abs(edge-1.75)/1.25)*0.06:0;" +
-            // 边缘暗化
-            "var es=edge<1.2?(1-edge/1.2)*0.35:0;" +
-            "var idx=(py*vw+px)*4;" +
-            "d[idx]=Math.min(255,(cc[0]*light+eh*255)*(1-es));" +
-            "d[idx+1]=Math.min(255,(cc[1]*light+eh*255)*(1-es));" +
-            "d[idx+2]=Math.min(255,(cc[2]*light+eh*255)*(1-es));" +
-            "d[idx+3]=255}}" +
-            "ox.putImageData(img,0,0);" +
-            // 缩放到全屏并缓存
-            "var fc=document.createElement('canvas');fc.width=sw;fc.height=sh;" +
-            "var fx=fc.getContext('2d');fx.imageSmoothingEnabled=true;fx.imageSmoothingQuality='high';" +
-            "fx.drawImage(oc,0,0,sw,sh);return fc}" +
-
-            // === 浅色模式粒子 ===
-            "var lightPal=[['rgba(0,188,212,','rgba(0,140,170,'],['rgba(0,200,170,','rgba(0,155,130,'],['rgba(139,195,74,','rgba(100,160,40,'],['rgba(205,190,50,','rgba(165,150,30,'],['rgba(255,183,77,','rgba(210,145,40,']];" +
-            "var lb=[];var lm=Math.min(24,w>800?36:14);" +
-            "for(var i=0;i<lm;i++){var side=i%2===0?rnd(10,w*0.3):rnd(w*0.7,w-10);" +
-            "var depth=rnd(.4,1);lb.push({x:side+rnd(-20,20),y:rnd(0,h)," +
-            "s:rnd(20,50)+depth*90,sp:rnd(.08,.15)+depth*.35,op:rnd(.08,.12)+depth*.12," +
-            "ci:Math.floor(rnd(0,5)),vx:rnd(-.03,.03),depth:depth})}" +
-
-            // === 主绘制循环 ===
-            "function draw(){var isDark=document.documentElement.getAttribute('data-theme')==='dark';" +
-            "ctx.clearRect(0,0,w,h);" +
-            "if(isDark){" +
-            // 深色模式：绘制缓存的 Voronoi 马赛克
-            "if(!voronoiCache){_seed=_initSeed;voronoiCache=renderVoronoi(w,h)}" +
-            "ctx.drawImage(voronoiCache,0,0)" +
-            "}else{" +
-            // 浅色模式：绘制漂浮粒子
-            "for(var i=0;i<lb.length;i++){var b=lb[i];b.y-=b.sp;b.x+=b.vx;" +
-            "var p=Math.min(1,Math.max(0,b.y/h));var op=b.op*p;var sz=b.s*p;" +
-            "if(b.y<-b.s*2){b.y=h+rnd(0,h*.3);var side=i%2===0?rnd(10,w*0.3):rnd(w*0.7,w-10);b.x=side+rnd(-20,20);" +
-            "b.s=rnd(20,50)+rnd(.4,1)*90;b.sp=rnd(.08,.15)+rnd(.2,.7);b.op=rnd(.08,.12)+rnd(.4,1)*.12;b.ci=Math.floor(rnd(0,5))}" +
-            "if(sz>6){var grd=ctx.createRadialGradient(b.x-sz*.15,b.y-sz*.15,0,b.x,b.y,sz/2);" +
-            "var c1=b.ci;var c2=(b.ci+1)%5;" +
-            "grd.addColorStop(0,'rgba(255,255,255,'+(op*.5).toFixed(3)+')');" +
-            "grd.addColorStop(.5,lightPal[c1][0]+(op*.8).toFixed(3)+')');" +
-            "grd.addColorStop(1,lightPal[c2][1]+(op*.6).toFixed(3)+')');" +
-            "ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,sz/2,0,Math.PI*2);ctx.fill()}}}" +
-            "requestAnimationFrame(draw)}draw()}();</script>" +
+            "<style>html{background:#05080f}body{background:transparent}" +
+            ".ocean-bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;display:block;pointer-events:none}</style>" +
+            "</head><body>" +
+            "<canvas class='ocean-bg' id='oceanBg' aria-hidden='true'></canvas>" +
+            "<main class='container'>" + body + "</main>" +
+            "<script src='/static/ascii-ocean.js'></script>" +
+            "<script>!function(){var c=document.getElementById('oceanBg');" +
+            "if(!c||!window.AsciiOcean)return;" +
+            "var eng=new window.AsciiOcean.OceanEngine(c,{fadeIn:true});" +
+            "eng.setSettings({heroOpacity:.7,idleOpacity:.7,background:'#05080f',grid:.03,dotDensity:.1});" +
+            "eng.start();window.addEventListener('beforeunload',function(){eng.destroy()});" +
+            "}();</script>" +
             "</body></html>";
-    }
-
-    private static String themeToggle() {
-        return "<div class='theme-switch' onclick='toggleTheme()' title='切换浅色/深色模式'>" +
-            "<svg class='icon-sun' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='5'/><path d='M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4'/></svg>" +
-            "<span class='toggle-track'><span class='toggle-thumb'></span></span>" +
-            "<svg class='icon-moon' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z'/></svg>" +
-            "</div>";
     }
 
     private static String card(String href, String title, String desc, int i) {
@@ -1147,73 +1057,45 @@ public class WebServer {
 
     private static String css() {
         return
-            // === CSS变量：浅色 ===
-            ":root,[data-theme='light']{color-scheme:light;" +
+            // === CSS变量：深海暗色（单一主题，配合 ASCII ocean 背景） ===
+            ":root{color-scheme:dark;" +
             "--space-xs:4px;--space-sm:8px;--space-md:16px;--space-lg:24px;--space-xl:32px;--space-2xl:48px;--space-3xl:64px;" +
-            "--bg:#f2f3f8;--surface:#fff;--surface2:#f8f9fc;--elevated:#fff;" +
-            "--text:#1e1e2e;--text2:#52526b;--border:#e2e2ec;" +
-            "--accent:#4f6ef7;--accent-h:#3b54d4;--accent-light:rgba(79,110,247,.08);" +
-            "--danger:#e74c3c;--danger-h:#c0392b;--danger-light:rgba(231,76,60,.08);" +
-            "--success:#27ae60;--success-light:rgba(39,174,96,.08);" +
-            "--shadow-sm:0 1px 2px rgba(0,0,0,.04);" +
-            "--shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);" +
-            "--shadow-lg:0 4px 16px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);" +
-            "--input-bg:#fff;--input-bd:#d4d4e0;--toggle-bg:#c8cad8;" +
-"--chevron:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2352526b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\");" +
-            "--hover:rgba(79,110,247,.04);--nav-hover:rgba(79,110,247,.06);" +
-            "--glow-top:rgba(79,110,247,.04);--glow-bottom:rgba(245,158,11,.03);" +
-            "--title-g1:#4f6ef7;--title-g2:#7c3aed;--title-g3:#d97706;" +
-            "--sub-g1:#6366f1;--sub-g2:#f59e0b;" +
+            "--bg:#05080f;--surface:rgba(13,17,29,.88);--surface2:rgba(20,25,40,.86);--elevated:rgba(22,27,44,.92);" +
+            "--text:#e6ebf7;--text2:#93a0bb;--border:rgba(120,150,210,.20);" +
+            "--accent:#6f9bff;--accent-h:#8fb3ff;--accent-light:rgba(111,155,255,.14);" +
+            "--danger:#ff6b6b;--danger-h:#e05555;--danger-light:rgba(255,107,107,.12);" +
+            "--success:#4ade80;--success-light:rgba(74,222,128,.12);" +
+            "--shadow-sm:0 1px 2px rgba(0,0,0,.35);" +
+            "--shadow:0 2px 10px rgba(0,0,0,.35);" +
+            "--shadow-lg:0 10px 30px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.25);" +
+            "--input-bg:rgba(9,12,21,.66);--input-bd:rgba(120,150,210,.26);--toggle-bg:#4f6ef7;" +
+"--chevron:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2393a0bb' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\");" +
+            "--hover:rgba(111,155,255,.08);--nav-hover:rgba(111,155,255,.12);" +
+            "--glow-top:rgba(111,155,255,.10);--glow-bottom:rgba(51,200,204,.06);" +
+            "--title-g1:#a5b4fc;--title-g2:#c4b5fd;--title-g3:#fcd34d;" +
+            "--sub-g1:#93c5fd;--sub-g2:#c4b5fd;" +
             "--radius-sm:6px;--radius:10px;--radius-lg:14px;" +
             "--ease-out:cubic-bezier(.16,1,.3,1);--ease-in-out:cubic-bezier(.4,0,.2,1)}" +
-
-            // === CSS变量：深色 ===
-            "[data-theme='dark']{color-scheme:dark;" +
-            "--bg:#0d0d1a;--surface:#16162b;--surface2:#1c1c34;--elevated:#222242;" +
-            "--text:#e2e2ee;--text2:#8e8eaa;--border:#282850;" +
-            "--accent:#7b9bff;--accent-h:#9bb5ff;--accent-light:rgba(123,155,255,.1);" +
-            "--danger:#ff6b6b;--danger-h:#e05555;--danger-light:rgba(255,107,107,.1);" +
-            "--success:#5ddb6e;--success-light:rgba(93,219,110,.1);" +
-            "--shadow-sm:0 1px 2px rgba(0,0,0,.25);" +
-            "--shadow:0 1px 4px rgba(0,0,0,.3);" +
-            "--shadow-lg:0 4px 16px rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.2);" +
-            "--input-bg:#1a1a35;--input-bd:#32325a;--toggle-bg:#4f6ef7;" +
-"--chevron:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8eaa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\");" +
-            "--hover:rgba(123,155,255,.06);--nav-hover:rgba(123,155,255,.08);" +
-            "--glow-top:rgba(123,155,255,.06);--glow-bottom:rgba(139,92,246,.04);" +
-            "--title-g1:#a5b4fc;--title-g2:#c4b5fd;--title-g3:#fcd34d;" +
-            "--sub-g1:#93c5fd;--sub-g2:#c4b5fd}" +
 
             // === 基础 ===
             "*{margin:0;padding:0;box-sizing:border-box}" +
 
-            // === 声明可过渡的 CSS 属性（主题渐变核心） ===
-            "@property--bg{syntax:'<color>';inherits:initial;initial-value:#f2f3f8}" +
-            "@property--surface{syntax:'<color>';inherits:initial;initial-value:#fff}" +
-            "@property--surface2{syntax:'<color>';inherits:initial;initial-value:#f8f9fc}" +
-            "@property--text{syntax:'<color>';inherits:initial;initial-value:#1e1e2e}" +
-            "@property--text2{syntax:'<color>';inherits:initial;initial-value:#52526b}" +
-            "@property--border{syntax:'<color>';inherits:initial;initial-value:#e2e2ec}" +
-            "@property--accent{syntax:'<color>';inherits:initial;initial-value:#4f6ef7}" +
-            "@property--shadow{syntax:'<shadow>';inherits:initial;initial-value:0 1px 3px rgba(0,0,0,.06)}" +
-            "@property--shadow-lg{syntax:'<shadow>';inherits:initial;initial-value:0 4px 16px rgba(0,0,0,.08)}" +
-            "@property--input-bg{syntax:'<color>';inherits:initial;initial-value:#fff}" +
-            "@property--input-bd{syntax:'<color>';inherits:initial;initial-value:#d4d4e0}" +
             "body{font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;" +
-            "background:var(--bg);color:var(--text);min-height:100vh;" +
-            "font-weight:350;line-height:1.6;position:relative;" +
-            "transition:background .4s var(--ease-out),color .4s var(--ease-out)}" +
+            "background:transparent;color:var(--text);min-height:100vh;" +
+            "font-weight:350;line-height:1.6;position:relative}" +
             "body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;" +
-            "background:radial-gradient(ellipse 80% 60% at 50% 0%,var(--glow-top),transparent)," +
-            "radial-gradient(ellipse 60% 50% at 80% 100%,var(--glow-bottom),transparent)}" +
+            "background:linear-gradient(180deg,rgba(5,8,15,.12) 0%,rgba(5,8,15,.34) 45%,rgba(5,8,15,.55) 100%)}" +
             "body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;" +
-            "opacity:.035;background-image:url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\");background-size:200px 200px}" +
+            "opacity:.03;background-image:url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\");background-size:200px 200px}" +
             "main.container{position:relative;z-index:1}" +
             ".container{max-width:860px;margin:0 auto;padding:var(--space-lg)}" +
             ".hero-cards,.card,.stat,.form-card,.edit-box,.login-box,.prob-card,.query-section," +
             "table,.input-wrap input,.input-wrap select,.btn,.filter-pill,.radio-pill .pill-text" +
             "{transition:background .4s var(--ease-out),color .4s var(--ease-out)," +
             "border-color .4s var(--ease-out),box-shadow .4s var(--ease-out)}" +
+            // 玻璃质感：让背景的海面透出来一点
+            ".hero-card,.card,.stat,.form-card,.edit-box,.login-box,.prob-card,table,.filter-pill," +
+            ".query-section{backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px) saturate(120%)}" +
 
             // === 顶部栏 ===
             ".top-bar{display:flex;align-items:center;gap:var(--space-sm);" +
@@ -1269,21 +1151,6 @@ public class WebServer {
             "margin-bottom:var(--space-md);padding-bottom:var(--space-sm);" +
             "border-bottom:2px solid var(--accent)}" +
             ".stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-sm)}" +
-
-            // === 主题开关 ===
-            ".theme-switch{display:flex;align-items:center;gap:var(--space-sm);" +
-            "margin-left:auto;cursor:pointer;user-select:none;padding:var(--space-xs)}" +
-            ".theme-switch:active .toggle-thumb{transform:scale(.9)}" +
-            ".toggle-track{width:44px;height:26px;background:var(--toggle-bg);" +
-            "border-radius:13px;position:relative;transition:background .3s var(--ease-out)}" +
-            ".toggle-thumb{width:22px;height:22px;background:#fff;border-radius:50%;" +
-            "position:absolute;top:2px;left:2px;transition:transform .3s var(--ease-out);" +
-            "box-shadow:0 1px 3px rgba(0,0,0,.2)}" +
-            "[data-theme='dark'] .toggle-thumb{transform:translateX(18px)}" +
-            ".icon-sun,.icon-moon{width:18px;height:18px;color:var(--text2);transition:color .3s}" +
-            "[data-theme='dark'] .icon-moon{color:#f0c040}" +
-            "[data-theme='light'] .icon-sun{color:#f59e0b}" +
-            ".top-right-toggle{display:flex;justify-content:flex-end;padding:var(--space-lg) var(--space-lg) 0}" +
 
             // === 卡片 ===
             ".card{background:var(--surface);padding:var(--space-xl) var(--space-lg);" +

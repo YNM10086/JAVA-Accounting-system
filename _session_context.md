@@ -13,7 +13,7 @@
   - `src/function/Date_time.java` — 日期时间工具
   - `src/function/Line.java` — 折线图生成（JDK Graphics2D）
   - `src/function/Archiver.java` — 跨年自动归档（标记文件 `records/.current_year`，跨年导出 Excel 后清表）
-  - `static/` — 静态资源目录
+  - `static/` — 静态资源目录（`xlsx.full.min.js` 导出库、`ascii-ocean.js` 海洋背景引擎）
   - `lib/` — 依赖 jar（MySQL Connector、Apache POI；POI 供归档用）
   - `out/` — 编译输出
 - 跨年归档机制：
@@ -32,10 +32,8 @@
 ## 代办事项
 
 ### 项目功能
-- [ ] 折线图口径修正 — 查询消费页第一张图只画日常消费，第二张图日常 + 特殊都要（今晚先做这条，提出于 2026-11-10）
 - [ ] 接入本地 Ollama AI — 默认不常开，留一个小按键；点开输入一段话，自动解析成分项并写入数据库（提出于 2026-11-10）
 - [ ] 打包成桌面软件 — 当前是 Java 17 + JDK HttpServer 的浏览器方案，需要改成可双击运行的桌面应用（提出于 2026-11-10）
-- [ ] 背景改版 — 去掉浅色/深色双模式，改用 DSH 背景插件的背景。已解析 `ASCII-ocean-DSHplugin-main.zip`：核心 `OceanEngine`/`World`/`AsciiRenderer` 是纯 canvas 代码，已剥离 DSH 模块加载器与 React 挂载后移植为 `static/ascii-ocean.js`（暴露 `window.AsciiOcean`），headless 截图已验证能渲染鲨鱼/鱼群；待办：替换 `page()` 里的 Voronoi 背景、移除主题切换、调暗层透明度保证可读性（提出于 2026-11-10）
 
 ### 通用工具想法
 <!-- - [ ] 工具名 — 想解决什么（提出于 yyyy-mm-dd） -->

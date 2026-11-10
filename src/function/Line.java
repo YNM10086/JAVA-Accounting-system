@@ -8,6 +8,11 @@ import javax.imageio.ImageIO;
 
 public class Line {
 
+    private static final Color BG = new Color(11, 15, 26);
+    private static final Color AXIS = new Color(147, 160, 187);
+    private static final Color GRID = new Color(45, 55, 78);
+    private static final Color TEXT = new Color(230, 235, 247);
+
     // 绘制每日消费折线图并保存到The_Pic目录
     public static void drawLineChart(List<Integer> days, List<Double> totals, String table) {
         int w = 800, h = 500;
@@ -17,7 +22,7 @@ public class Line {
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(Color.WHITE);
+        g.setColor(BG);
         g.fillRect(0, 0, w, h);
 
         // 数据范围
@@ -30,7 +35,7 @@ public class Line {
         int maxDay = days.stream().max(Integer::compare).orElse(31);
 
         // 坐标轴
-        g.setColor(Color.BLACK);
+        g.setColor(AXIS);
         g.setStroke(new BasicStroke(2));
         g.drawLine(pad, h - pad, w - pad, h - pad);
         g.drawLine(pad, pad, pad, h - pad);
@@ -41,18 +46,18 @@ public class Line {
         for (int i = 0; i <= yTicks; i++) {
             double val = minTotal + (maxTotal - minTotal) * i / yTicks;
             int y = h - pad - (int)(chartH * i / yTicks);
-            g.setColor(Color.LIGHT_GRAY);
+            g.setColor(GRID);
             g.drawLine(pad + 1, y, w - pad, y);
-            g.setColor(Color.BLACK);
+            g.setColor(AXIS);
             g.drawString(String.format("%.0f", val), 2, y + 4);
         }
 
         // X轴刻度
         for (int d = minDay; d <= maxDay; d++) {
             int x = pad + (int)(chartW * (double)(d - minDay) / (maxDay - minDay + 0.01));
-            g.setColor(Color.LIGHT_GRAY);
+            g.setColor(GRID);
             g.drawLine(x, h - pad - 1, x, pad);
-            g.setColor(Color.BLACK);
+            g.setColor(AXIS);
             g.drawString(String.valueOf(d), x - 4, h - pad + 16);
         }
 
@@ -75,15 +80,15 @@ public class Line {
         for (int i = 0; i < n; i++) {
             g.setColor(new Color(220, 50, 50));
             g.fillOval(xs[i] - 5, ys[i] - 5, 10, 10);
-            g.setColor(Color.WHITE);
+            g.setColor(BG);
             g.fillOval(xs[i] - 2, ys[i] - 2, 4, 4);
-            g.setColor(Color.BLACK);
+            g.setColor(AXIS);
             g.setFont(new Font("微软雅黑", Font.PLAIN, 10));
             g.drawString(String.format("%.1f", totals.get(i)), xs[i] - 12, ys[i] - 10);
         }
 
         // 标题
-        g.setFont(new Font("微软雅黑", Font.BOLD, 16));
+        g.setFont(new Font("微软雅黑", Font.BOLD, 16)); g.setColor(TEXT);
         g.drawString(table + " 每日消费折线图", w / 2 - 80, pad / 2);
 
         g.dispose();
@@ -108,7 +113,7 @@ public class Line {
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setColor(Color.WHITE);
+        g.setColor(BG);
         g.fillRect(0, 0, w, h);
 
         if (days == null || days.isEmpty()) { g.dispose(); return; }
@@ -124,7 +129,7 @@ public class Line {
         double daySpan = Math.max(maxDay - minDay, 1);
 
         // 坐标轴
-        g.setColor(Color.BLACK);
+        g.setColor(AXIS);
         g.setStroke(new BasicStroke(2));
         g.drawLine(pad, h - pad, w - pad, h - pad);
         g.drawLine(pad, pad, pad, h - pad);
@@ -135,23 +140,23 @@ public class Line {
         for (int i = 0; i <= yTicks; i++) {
             double val = minTotal + (maxTotal - minTotal) * i / yTicks;
             int y = h - pad - (int)(chartH * i / yTicks);
-            g.setColor(Color.LIGHT_GRAY);
+            g.setColor(GRID);
             g.drawLine(pad + 1, y, w - pad, y);
-            g.setColor(Color.BLACK);
+            g.setColor(AXIS);
             g.drawString(String.format("%.0f", val), 2, y + 4);
         }
 
         // X轴刻度
         for (int d = minDay; d <= maxDay; d++) {
             int x = pad + (int)(chartW * (d - minDay) / daySpan);
-            g.setColor(Color.LIGHT_GRAY);
+            g.setColor(GRID);
             g.drawLine(x, h - pad - 1, x, pad);
-            g.setColor(Color.BLACK);
+            g.setColor(AXIS);
             g.drawString(String.valueOf(d), x - 4, h - pad + 16);
         }
 
         Color cDaily = new Color(220, 50, 50);
-        Color cSpecial = new Color(40, 110, 220);
+        Color cSpecial = new Color(111, 155, 255);
         drawSeries(g, days, daily, minDay, daySpan, pad, chartW, chartH, h, w, minTotal, maxTotal, cDaily, "日常");
         drawSeries(g, days, special, minDay, daySpan, pad, chartW, chartH, h, w, minTotal, maxTotal, cSpecial, "特殊");
 
@@ -159,12 +164,12 @@ public class Line {
         int lx = w - pad - 150, ly = pad + 6;
         g.setFont(new Font("微软雅黑", Font.PLAIN, 12));
         g.setColor(cDaily); g.fillRect(lx, ly, 18, 4);
-        g.setColor(Color.BLACK); g.drawString("日常消费", lx + 24, ly + 5);
+        g.setColor(AXIS); g.drawString("日常消费", lx + 24, ly + 5);
         g.setColor(cSpecial); g.fillRect(lx, ly + 18, 18, 4);
-        g.setColor(Color.BLACK); g.drawString("特殊消费", lx + 24, ly + 23);
+        g.setColor(AXIS); g.drawString("特殊消费", lx + 24, ly + 23);
 
         // 标题
-        g.setFont(new Font("微软雅黑", Font.BOLD, 16));
+        g.setFont(new Font("微软雅黑", Font.BOLD, 16)); g.setColor(TEXT);
         g.drawString(title, w / 2 - 100, pad / 2);
 
         g.dispose();
@@ -198,7 +203,7 @@ public class Line {
         for (int i = 0; i < n; i++) {
             g.setColor(color);
             g.fillOval(xs[i] - 4, ys[i] - 4, 8, 8);
-            g.setColor(Color.WHITE);
+            g.setColor(BG);
             g.fillOval(xs[i] - 1, ys[i] - 1, 2, 2);
             if (values.get(i) > 0) {
                 String txt = String.format("%.1f", values.get(i));
@@ -206,9 +211,9 @@ public class Line {
                 int tx = Math.max(2, Math.min(xs[i] - tw / 2, w - 2 - tw));
                 int ty = ys[i] - 9;
                 if (ty < 12) ty = ys[i] + 15;
-                g.setColor(Color.WHITE);
+                g.setColor(BG);
                 g.fillRect(tx - 2, ty - 10, tw + 4, 12);
-                g.setColor(Color.BLACK);
+                g.setColor(AXIS);
                 g.drawString(txt, tx, ty);
             }
         }
