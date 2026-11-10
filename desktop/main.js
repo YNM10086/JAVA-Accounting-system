@@ -6,13 +6,16 @@ const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 
-const APP_ID = 'com.lightofhumanity.desktop';
+const APP_ID = 'com.bookkeepingsystem.desktop';
+const APP_NAME = 'Bookkeeping System';
 const isDev = !app.isPackaged;
 
 let javaProc = null;
 let mainWindow = null;
 let quitting = false;
 
+// 数据目录固定在这里：以后改显示名/产品名，账本数据也不会跟着搬家
+app.setPath('userData', path.join(app.getPath('appData'), 'BookkeepingSystem'));
 app.setAppUserModelId(APP_ID);
 
 /* ---------------- 路径 ---------------- */
@@ -158,7 +161,7 @@ const LOADING_HTML = `<!doctype html><meta charset="utf-8">
   @keyframes pulse{50%{opacity:.35;transform:scale(.85)}}
   p{margin:0;letter-spacing:.08em;opacity:.75}
 </style>
-<div class="box"><div class="dot"></div><p>正在启动人间烟火…</p></div>`;
+<div class="box"><div class="dot"></div><p>正在启动 Bookkeeping System…</p></div>`;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -169,7 +172,7 @@ function createWindow() {
     backgroundColor: '#07101d',
     show: false,
     autoHideMenuBar: true,
-    title: '人间烟火',
+    title: APP_NAME,
     icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       contextIsolation: true,
@@ -180,6 +183,9 @@ function createWindow() {
 
   mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(LOADING_HTML));
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  // 页面里的 <title> 不覆盖窗口标题，保持应用名一致
+  mainWindow.on('page-title-updated', (e) => e.preventDefault());
+  mainWindow.setTitle(APP_NAME);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
@@ -214,7 +220,7 @@ function bindPageGuards(baseUrl) {
  */
 
 const UPDATE_API = 'https://api.github.com/repos/YNM10086/JAVA-Accounting-system/releases/latest';
-const SETUP_RE = /^TheLightOfHumanity-.*-setup\.exe$/i;
+const SETUP_RE = /^BookkeepingSystem-.*-setup\.exe$/i;
 
 let updateBusy = false;
 
@@ -406,7 +412,7 @@ async function boot() {
     setupUpdater();
   } catch (err) {
     log('boot failed: ' + (err && err.message ? err.message : err));
-    dialog.showErrorBox('人间烟火启动失败', String(err && err.message ? err.message : err));
+    dialog.showErrorBox(APP_NAME + ' 启动失败', String(err && err.message ? err.message : err));
     app.quit();
   }
 }

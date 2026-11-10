@@ -30,8 +30,8 @@
   3. 改 `src/function/One.java` 的数据库连接信息（URL、USER、PWD）
   4. 运行 `The_main.java` 的 `main()`
   5. 浏览器访问 http://localhost:8080
-- 桌面版构建：`.\desktop\build.ps1`（`-Version 1.0.1` 改版本号，`-Publish` 发布到 GitHub Releases，需 `GH_TOKEN`）→ `desktop\dist\TheLightOfHumanity-<版本>-setup.exe`（内置精简 JRE，装完双击即用）
-- 自动更新：应用启动 5s 后查 `api.github.com/.../releases/latest`，有新版弹窗确认 → 下载（校验 sha512）→ 退出后静默安装并重启。日志 `%APPDATA%\人间烟火\desktop.log`。不走 electron-updater（github.com 直连超时），改用 API 资产地址 + `release-assets.githubusercontent.com`
+- 桌面版构建：`.\desktop\build.ps1`（`-Version 1.0.1` 改版本号，`-Publish` 发布到 GitHub Releases，需 `GH_TOKEN`）→ `desktop\dist\BookkeepingSystem-<版本>-setup.exe`（内置精简 JRE，装完双击即用）
+- 自动更新：应用启动 5s 后查 `api.github.com/.../releases/latest`，有新版弹窗确认 → 下载（校验 sha512）→ 退出后静默安装并重启。日志 `%APPDATA%\BookkeepingSystem\desktop.log`。不走 electron-updater（github.com 直连超时），改用 API 资产地址 + `release-assets.githubusercontent.com`
 - 常见产物位置：编译输出 `out/`，桌面安装包 `desktop/dist/`，归档导出 `records/`，图表 `The_Pic/`
 
 ## 代办事项

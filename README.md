@@ -110,7 +110,7 @@ tools/
 ## 桌面版
 
 ```powershell
-.\desktop\build.ps1     # 产出 desktop\dist\TheLightOfHumanity-1.0.0-setup.exe
+.\desktop\build.ps1     # 产出 desktop\dist\BookkeepingSystem-1.0.0-setup.exe
 ```
 
 安装包自带精简 JRE 与全部依赖，装完双击即可使用，不需要另装 Java、也不需要开浏览器。

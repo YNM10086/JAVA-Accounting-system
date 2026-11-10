@@ -1,6 +1,6 @@
 {
-  "name": "the-light-of-humanity",
-  "productName": "人间烟火",
+  "name": "bookkeeping-system",
+  "productName": "Bookkeeping System",
   "version": "1.0.0",
   "description": "个人消费记录系统 · 桌面版",
   "author": "The Light Of Humanity",
@@ -15,8 +15,8 @@
     "electron-builder": "26.18.0"
   },
   "build": {
-    "appId": "com.lightofhumanity.desktop",
-    "productName": "人间烟火",
+    "appId": "com.bookkeepingsystem.desktop",
+    "productName": "Bookkeeping System",
     "copyright": "Copyright © 2026 The Light Of Humanity",
     "directories": {
       "output": "dist",
@@ -48,7 +48,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "TheLightOfHumanity-${version}-setup.${ext}"
+      "artifactName": "BookkeepingSystem-${version}-setup.${ext}"
     },
     "publish": {
       "provider": "github",
@@ -62,7 +62,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "人间烟火",
+      "shortcutName": "Bookkeeping System",
       "deleteAppDataOnUninstall": false
     }
   }

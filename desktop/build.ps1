@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  构建「人间烟火」桌面版：编译 Java → 复制资源 → 打包 JRE → 出 NSIS 安装包（可选发布到 GitHub Releases）。
+  构建「Bookkeeping System」桌面版：编译 Java → 复制资源 → 打包 JRE → 出 NSIS 安装包（可选发布到 GitHub Releases）。
 
 .EXAMPLE
   .\build.ps1                          # 完整构建，版本号不变

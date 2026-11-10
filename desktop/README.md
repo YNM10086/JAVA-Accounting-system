@@ -39,7 +39,7 @@ npm start
 
 产物在 `desktop/dist/`：
 
-- `TheLightOfHumanity-<版本>-setup.exe` — NSIS 安装包（可选安装目录、建桌面/开始菜单快捷方式）
+- `BookkeepingSystem-<版本>-setup.exe` — NSIS 安装包（可选安装目录、建桌面/开始菜单快捷方式）
 - `win-unpacked/` — 免安装目录
 - `latest.yml` — 自动更新用的版本清单（发布时一起上传）
 
@@ -55,7 +55,7 @@ npm start
 2. 选下载 → 显示进度（窗口标题 + 任务栏进度条）→ 下载完校验 sha512
 3. 弹窗「立即重启并安装 / 下次启动再装」→ 选立即 → 程序退出、静默安装、自动拉起新版本
 
-数据在 `%APPDATA%\人间烟火\data`，升级不碰。
+数据在 `%APPDATA%\BookkeepingSystem\data`，升级不碰。
 
 **发布新版本**：
 
@@ -74,13 +74,13 @@ $env:GH_TOKEN='ghp_xxx'          # Personal Access Token，勾 repo 权限
 
 electron-updater 从 `github.com/.../releases/download/...` 拉资产，该域名在部分网络下直连超时。这里改成走 `api.github.com` 的资产地址（`Accept: application/octet-stream`），由 GitHub 302 到 `release-assets.githubusercontent.com`，实测可正常下载。逻辑在 `main.js` 的「自动更新」段，无第三方依赖。
 
-排查更新问题看日志：`%APPDATA%\人间烟火\desktop.log`。
+排查更新问题看日志：`%APPDATA%\BookkeepingSystem\desktop.log`。
 
 ## 运行机制
 
 1. `main.js` 用 `java -cp runtime/classes;runtime/lib/* System.The_main` 起后台服务，环境变量 `LOH_NO_BROWSER=1` 阻止它自己开浏览器
 2. 服务在 stdout 打印 `LOH_URL=http://localhost:<port>`，主进程解析后 `loadURL`
-3. 工作目录设为 `%APPDATA%/人间烟火/data`，`The_Pic/`、`records/`、`static/` 都落在这里，避免写入安装目录
+3. 工作目录设为 `%APPDATA%/BookkeepingSystem/data`，`The_Pic/`、`records/`、`static/` 都落在这里，避免写入安装目录
 4. 关窗 → `taskkill /T` 收掉 Java 子进程；单实例锁防止开两个窗口抢端口
 
 端口仍按 `8080 → 8081 → 8082 → 9090` 回退，所以即使有残留进程也能起来。
