@@ -1,7 +1,7 @@
 # The_Light_Of_Humanity — 会话记忆
 
 ## 项目简述
-个人消费记录系统（JAVA-Accounting-system）：Java 17 + JDK HttpServer 后端，控制台菜单与 HTML/CSS/JS + Canvas 前端（前端内联于 WebServer.java），MySQL 存 `Cost_system` 库（每月一张 `table_XX`）。功能：消费存入、查询统计、折线图、预算管控、Excel 导出、深浅主题、时段问候封面、跨年自动归档。
+个人消费记录系统（JAVA-Accounting-system）：Java 17 + JDK HttpServer 后端，控制台菜单与 HTML/CSS/JS + Canvas 前端（前端内联于 WebServer.java），MySQL 存 `Cost_system` 库（每月一张 `table_XX`）。功能：消费存入、查询统计、折线图、预算管控、Excel 导出、ASCII 海洋动态背景、时段问候封面、跨年自动归档。已用 Electron 套壳成可双击安装的桌面版。
 
 ## 工作流
 - 技术栈/入口：Java 17（MySQL Connector + Apache POI 在 `lib/`），IDEA 打开后运行 `src/System/The_main.java` 的 `main()`，启动后浏览器自动打开 http://localhost:8080
@@ -13,9 +13,12 @@
   - `src/function/Date_time.java` — 日期时间工具
   - `src/function/Line.java` — 折线图生成（JDK Graphics2D）
   - `src/function/Archiver.java` — 跨年自动归档（标记文件 `records/.current_year`，跨年导出 Excel 后清表）
-  - `static/` — 静态资源目录（`xlsx.full.min.js` 导出库、`ascii-ocean.js` 海洋背景引擎）
+  - `static/` — 静态资源目录（`xlsx.full.min.js` 导出库、`html2canvas`、`gsap`、`ascii-ocean.js` 海洋背景引擎）
   - `lib/` — 依赖 jar（MySQL Connector、Apache POI；POI 供归档用）
   - `out/` — 编译输出
+  - `desktop/` — Electron 桌面版（`main.js` 起 Java 子进程并开窗口、`build.ps1` 出 NSIS 安装包、`build/icon.ico` 图标）
+  - `tools/icon/IconGen.java` — 原创图标生成器（Java2D → 多尺寸 ICO）
+  - `tools/page-preview/` — 不连 MySQL 的页面预览截图工具
 - 跨年归档机制：
   - 12 张表 `table_01`~`table_12` 按月循环、**无年份字段**；`records/.current_year` 记住当前数据属于哪年
   - 触发：`Archiver.ensureRollover()`（幂等），挂在 `The_main.main()`、控制台 `saveConsumption()`、Web `handleSavePost`/`handleIncomePost`
@@ -27,13 +30,14 @@
   3. 改 `src/function/One.java` 的数据库连接信息（URL、USER、PWD）
   4. 运行 `The_main.java` 的 `main()`
   5. 浏览器访问 http://localhost:8080
-- 常见产物位置：编译输出 `out/`，截图 `screenshots/`，归档导出 `records/`
+- 桌面版构建：`.\desktop\build.ps1` → `desktop\dist\TheLightOfHumanity-1.0.0-setup.exe`（内置精简 JRE，装完双击即用）
+- 常见产物位置：编译输出 `out/`，桌面安装包 `desktop/dist/`，归档导出 `records/`，图表 `The_Pic/`
 
 ## 代办事项
 
 ### 项目功能
 - [ ] 接入本地 Ollama AI — 默认不常开，留一个小按键；点开输入一段话，自动解析成分项并写入数据库（提出于 2026-11-10）
-- [ ] 打包成桌面软件 — 当前是 Java 17 + JDK HttpServer 的浏览器方案，需要改成可双击运行的桌面应用（提出于 2026-11-10）
+- [ ] 软导航（SPA 式背景连贯）— 点卡片整页重载会让海洋背景重置，计划拦站内 GET 链接、fetch + 替换 `<main>`，POST 暂不接管（待用户确认，提出于 2026-11-10）
 
 ### 通用工具想法
 <!-- - [ ] 工具名 — 想解决什么（提出于 yyyy-mm-dd） -->

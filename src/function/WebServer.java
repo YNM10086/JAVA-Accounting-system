@@ -38,8 +38,14 @@ public class WebServer {
         System.out.println("Web服务器已启动: " + url);
         System.out.println("如果浏览器未自动打开,请手动访问上述地址");
         System.out.println("====================================");
+        // 给外部外壳（如 Electron）用的机器可读地址，勿改格式
+        System.out.println("LOH_URL=" + url);
+        System.out.flush();
 
-        try { Desktop.getDesktop().browse(new URI(url)); } catch (Exception ignored) {}
+        // 被桌面外壳接管时不要再唤起系统浏览器
+        if (!"1".equals(System.getenv("LOH_NO_BROWSER"))) {
+            try { Desktop.getDesktop().browse(new URI(url)); } catch (Exception ignored) {}
+        }
     }
 
     // ==================== 路由 ====================

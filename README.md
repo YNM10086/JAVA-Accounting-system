@@ -95,8 +95,24 @@ src/
     ├── Menu.java          # 终端菜单（保留兼容）
     └── WebServer.java     # Web 服务器 + 所有页面逻辑
 static/
-└── ascii-ocean.js         # ASCII 海洋背景引擎（移植自 dsh-ascii-ocean，MIT）
+├── ascii-ocean.js         # ASCII 海洋背景引擎（移植自 dsh-ascii-ocean，MIT）
+└── ...                    # 导出 Excel 等前端依赖
+desktop/                   # Electron 桌面版（见 desktop/README.md）
+├── main.js                # 主进程：起 Java 服务、开窗口、退出收进程
+├── build.ps1              # 一键构建 NSIS 安装包
+└── build/icon.ico         # 应用图标（tools/icon/IconGen.java 生成）
+tools/
+├── icon/                  # 原创图标生成器
+└── page-preview/          # 不连数据库的页面预览截图
 ```
+
+## 桌面版
+
+```powershell
+.\desktop\build.ps1     # 产出 desktop\dist\TheLightOfHumanity-1.0.0-setup.exe
+```
+
+安装包自带精简 JRE 与全部依赖，装完双击即可使用，不需要另装 Java、也不需要开浏览器。
 
 ## 致谢与许可
 

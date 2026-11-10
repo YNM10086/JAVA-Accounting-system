@@ -1,0 +1,63 @@
+{
+  "name": "the-light-of-humanity",
+  "productName": "人间烟火",
+  "version": "1.0.0",
+  "description": "个人消费记录系统 · 桌面版",
+  "author": "The Light Of Humanity",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "43.1.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.lightofhumanity.desktop",
+    "productName": "人间烟火",
+    "copyright": "Copyright © 2026 The Light Of Humanity",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "compression": "maximum",
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "TheLightOfHumanity-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "人间烟火",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

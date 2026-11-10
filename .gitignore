@@ -28,3 +28,8 @@ desktop.ini
 
 # === 本地构建/预览产物 ===
 .build_tmp/
+
+# === 桌面端构建产物 ===
+desktop/node_modules/
+desktop/runtime/
+desktop/dist/
