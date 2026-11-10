@@ -245,7 +245,7 @@ public class WebServer {
         sb.append("</section>");
 
         // === 二、折线图 ===
-        sb.append("<section class='query-section'><h3>每日趋势</h3>");
+        sb.append("<section class='query-section'><h3>每日趋势</h3><p class='hint'>仅统计日常消费（num_1=1）</p>");
         Connection conn2 = One.getConn();
         if (conn2 != null) {
             try {
@@ -263,6 +263,38 @@ public class WebServer {
                     sb.append("<p>暂无数据。</p>");
                 }
             } finally { conn2.close(); }
+        }
+        sb.append("</section>");
+
+        // === 二·B、日常 vs 特殊 对比折线图 ===
+        sb.append("<section class='query-section'><h3>日常 vs 特殊趋势</h3>");
+        sb.append("<p class='hint'>红线 = 日常消费（num_1=1），蓝线 = 特殊消费（num_1=2）</p>");
+        Connection connCmp = One.getConn();
+        if (connCmp != null) {
+            try {
+                PreparedStatement psCmp = One.getPreparedStmt(connCmp,
+                    "SELECT date, SUM(CASE WHEN num_1=1 THEN price ELSE 0 END), " +
+                    "SUM(CASE WHEN num_1=2 THEN price ELSE 0 END) FROM " + table +
+                    " GROUP BY date ORDER BY date");
+                ResultSet rsCmp = psCmp.executeQuery();
+                List<Integer> cmpDays = new ArrayList<>();
+                List<Double> cmpDaily = new ArrayList<>();
+                List<Double> cmpSpecial = new ArrayList<>();
+                while (rsCmp.next()) {
+                    cmpDays.add(rsCmp.getInt(1));
+                    cmpDaily.add(rsCmp.getDouble(2));
+                    cmpSpecial.add(rsCmp.getDouble(3));
+                }
+                rsCmp.close(); psCmp.close();
+                if (!cmpDays.isEmpty()) {
+                    Line.drawCompareChart(cmpDays, cmpDaily, cmpSpecial,
+                        table + " 日常 / 特殊消费对比", table + "_chart_cmp.png");
+                    sb.append("<img src='/chart-img?f=").append(table).append("_chart_cmp.png' class='chart-img' alt='")
+                      .append(selMonth).append("月日常与特殊消费对比折线图' onerror=\"this.outerHTML='<p>图片加载失败</p>'\">");
+                } else {
+                    sb.append("<p>暂无数据。</p>");
+                }
+            } finally { connCmp.close(); }
         }
         sb.append("</section>");
 
