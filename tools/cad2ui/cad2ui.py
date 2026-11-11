@@ -3,7 +3,18 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from core.errors import Cad2UiError, NoGeometry
+from core.computed import apply_computed
+from core.dxf_io import load_drawing
+from core.errors import Cad2UiError
+from core.extract import extract
+from core.infer import apply_types
+from core.layout import assign_ids, build_tree
+from core.model import Layout
+from core.render_html import render_html
+from core.render_png import render_png
+from core.report import render_report
+from core.serialize import dump_json, layout_to_dict
+from core.style import load_mapping
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,13 +49,62 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return ns
 
 
+def _stats(nodes) -> dict:
+    counts: dict[str, int] = {}
+    for node in nodes:
+        counts[node.kind] = counts.get(node.kind, 0) + 1
+    counts["total"] = len(nodes)
+    return counts
+
+
+def run(ns: argparse.Namespace) -> int:
+    src = Path(ns.input)
+    out_dir = Path(ns.out) if ns.out else Path("out") / src.stem
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    loaded = load_drawing(src, out_dir, keep_dxf=ns.keep_dxf)
+    elements, warnings, canvas = extract(loaded, width=ns.width,
+                                         layers=ns.layers,
+                                         ignore_layers=ns.ignore_layers)
+    tree = build_tree(elements, warnings)
+    flat = assign_ids(tree)
+
+    mapping = load_mapping(ns.map_file) if ns.map_file else {"blocks": {}, "layers": {}}
+    apply_types(tree, mapping, canvas.width, warnings)
+    apply_computed(tree)
+
+    layout = Layout(
+        title=ns.title or src.stem,
+        canvas=canvas,
+        tree=tree,
+        nodes=flat,
+        warnings=warnings,
+        stats=_stats(flat),
+    )
+    source = {"file": src.name, "via": loaded.via, "entityCount": loaded.entity_count}
+
+    dump_json(layout_to_dict(layout, source), out_dir / "layout.json")
+    render_html(layout, source, out_dir / "preview.html")
+    if not ns.no_png:
+        render_png(layout, out_dir / "preview.png", warnings)
+    render_report(layout, source, out_dir / "report.md")
+
+    if not ns.quiet:
+        print(f"完成：{out_dir}")
+        print(f"  节点 {len(flat)} / 实体 {loaded.entity_count} / warnings {len(warnings)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ns = parse_args(argv)
     try:
-        raise NoGeometry(f"pipeline 尚未接入：{ns.input}")
+        return run(ns)
     except Cad2UiError as exc:
         print(f"错误：{exc}")
         return exc.exit_code
+    except Exception as exc:                     # 兜底，不让用户看裸 traceback
+        print(f"未预期错误：{type(exc).__name__}: {exc}")
+        return 1
 
 
 if __name__ == "__main__":
