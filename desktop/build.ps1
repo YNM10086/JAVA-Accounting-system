@@ -52,7 +52,7 @@ if ($SkipJre) {
 } elseif (Test-Path (Join-Path $jre 'bin\java.exe')) {
     Write-Host '   已存在，跳过'
 } else {
-    & jlink --add-modules java.base,java.desktop,java.sql,java.naming,java.management,java.xml,java.logging,java.transaction.xa,jdk.httpserver,jdk.unsupported,jdk.charsets,jdk.crypto.ec `
+    & jlink --add-modules java.base,java.desktop,java.sql,java.naming,java.management,java.xml,java.logging,java.transaction.xa,java.net.http,jdk.httpserver,jdk.unsupported,jdk.charsets,jdk.crypto.ec `
         --strip-debug --no-header-files --no-man-pages --compress=zip-6 --output $jre
     if ($LASTEXITCODE -ne 0) { throw 'jlink 打包 JRE 失败' }
 }

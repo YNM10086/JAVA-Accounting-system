@@ -4,6 +4,7 @@ import com.sun.net.httpserver.*;
 import java.awt.Desktop;
 import java.io.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
@@ -30,7 +31,8 @@ public class WebServer {
         }
 
         srv.createContext("/", WebServer::handle);
-        srv.setExecutor(null);
+        // AI 请求可能跑几秒，用线程池避免把整站请求串行堵住
+        srv.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
         srv.start();
 
         String url = "http://localhost:" + usedPort;
@@ -68,6 +70,10 @@ public class WebServer {
                 case "/budget"       -> html(ex, budgetPage());
                 case "/export"       -> handleExportData(ex);
                 case "/chart-img"    -> serveChart(ex);
+                case "/ai/status"    -> json(ex, AiAssistant.statusJson());
+                case "/ai/parse"     -> { if ("POST".equals(method)) handleAiParse(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
+                case "/ai/save"      -> { if ("POST".equals(method)) handleAiSave(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
+                case "/ai/advice"    -> { if ("POST".equals(method)) handleAiAdvice(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 default              -> {
                     if (path.startsWith("/static/")) serveStatic(ex, path);
                     else redirect(ex, "/main");
@@ -165,6 +171,98 @@ public class WebServer {
             conn.close();
         } catch (Exception e) { try { conn.close(); } catch (Exception ignored) {} }
         redirect(ex, "/income");
+    }
+
+    // ==================== AI 记账（本地 Ollama） ====================
+
+    private static void handleAiParse(HttpExchange ex) throws IOException {
+        try {
+            Map<String, Object> body = Json.map(Json.parse(readBody(ex)));
+            String text = Json.str(body.get("text"));
+            if (text == null || text.trim().isEmpty()) {
+                json(ex, "{\"ok\":false,\"error\":\"先说说今天买了什么\"}");
+                return;
+            }
+            List<AiAssistant.Item> items = AiAssistant.parse(text.trim());
+            json(ex, AiAssistant.itemsJson(items));
+        } catch (Exception e) {
+            json(ex, "{\"ok\":false,\"error\":\"" + Json.esc(errMsg(e)) + "\"}");
+        }
+    }
+
+    private static void handleAiSave(HttpExchange ex) throws IOException {
+        try {
+            Map<String, Object> body = Json.map(Json.parse(readBody(ex)));
+            List<AiAssistant.Item> items = new ArrayList<>();
+            for (Object o : Json.list(body.get("items"))) {
+                Map<String, Object> m = Json.map(o);
+                String goods = Json.str(m.get("goods"));
+                double price = Json.num(m.get("price"), 0);
+                if (goods == null || goods.trim().isEmpty() || price <= 0) continue;
+                String g = goods.trim();
+                if (g.length() > 40) g = g.substring(0, 40);
+                AiAssistant.Item it = new AiAssistant.Item();
+                it.goods = g;
+                it.price = Math.round(price * 100) / 100.0;
+                it.type = Json.i(m.get("type"), 1) == 2 ? 2 : 1;
+                it.day = Math.min(31, Math.max(1, Json.i(m.get("day"), Date_time.getDay())));
+                items.add(it);
+            }
+            if (items.isEmpty()) {
+                json(ex, "{\"ok\":false,\"error\":\"没有可保存的条目\"}");
+                return;
+            }
+            int n = AiAssistant.save(items);
+            String advice = "";
+            String adviceErr = null;
+            try {
+                advice = AiAssistant.advice();
+            } catch (Exception e) {
+                adviceErr = errMsg(e);
+            }
+            StringBuilder b = new StringBuilder();
+            b.append("{\"ok\":true,\"saved\":").append(n)
+             .append(",\"advice\":\"").append(Json.esc(advice)).append('"');
+            if (adviceErr != null) {
+                b.append(",\"adviceError\":\"").append(Json.esc(adviceErr)).append('"');
+            }
+            b.append('}');
+            json(ex, b.toString());
+        } catch (Exception e) {
+            json(ex, "{\"ok\":false,\"error\":\"" + Json.esc(errMsg(e)) + "\"}");
+        }
+    }
+
+    private static void handleAiAdvice(HttpExchange ex) throws IOException {
+        try {
+            json(ex, "{\"ok\":true,\"advice\":\"" + Json.esc(AiAssistant.advice()) + "\"}");
+        } catch (Exception e) {
+            json(ex, "{\"ok\":false,\"error\":\"" + Json.esc(errMsg(e)) + "\"}");
+        }
+    }
+
+    private static String readBody(HttpExchange ex) throws IOException {
+        return new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    /** 给用户看的短错误，避免把整段异常直接甩到气泡里 */
+    private static String errMsg(Exception e) {
+        String m = e.getMessage();
+        if (e instanceof java.net.ConnectException
+                || (m != null && (m.contains("Connection refused") || m.contains("connect timed out")))) {
+            return "连不上 Ollama，先确认它正在运行";
+        }
+        if (e instanceof java.net.http.HttpTimeoutException) {
+            return "AI 响应超时，稍后再试";
+        }
+        return (m == null || m.trim().isEmpty()) ? e.getClass().getSimpleName() : m;
+    }
+
+    private static void json(HttpExchange ex, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+        ex.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
     }
 
     private static void initTable(Connection conn) {
@@ -1029,6 +1127,7 @@ public class WebServer {
             "eng.start();window.addEventListener('beforeunload',function(){eng.destroy()});" +
             "}();</script>" +
             "<script src='/static/soft-nav.js'></script>" +
+            "<script src='/static/ai-widget.js'></script>" +
             "</body></html>";
     }
 
