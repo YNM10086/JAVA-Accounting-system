@@ -26,10 +26,18 @@ _backup/
 Thumbs.db
 desktop.ini
 
-# === ±¾µØ¹¹½¨/Ô¤ÀÀ²úÎï ===
+# === ï¿½ï¿½ï¿½Ø¹ï¿½ï¿½ï¿½/Ô¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ===
 .build_tmp/
 
-# === ×ÀÃæ¶Ë¹¹½¨²úÎï ===
+# === ï¿½ï¿½ï¿½ï¿½Ë¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ===
 desktop/node_modules/
 desktop/runtime/
 desktop/dist/
+
+# === superpowers æ‰§è¡Œå°è´¦ï¼ˆæœ¬åœ° scratchï¼‰ ===
+.superpowers/
+
+# === Pythonï¼ˆcad2ui å·¥å…·ï¼‰ ===
+__pycache__/
+*.pyc
+.pytest_cache/
