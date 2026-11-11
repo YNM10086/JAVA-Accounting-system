@@ -109,7 +109,9 @@ public class AiAssistant {
             "只输出 JSON，不要解释，格式：\n" +
             "{\"items\":[{\"goods\":\"商品名，20字以内\",\"price\":数字,\"type\":1,\"day\":数字}]}\n" +
             "规则：\n" +
-            "- type=1 日常消费（吃饭、饮料、交通、日用品、话费、房租等）；type=2 特殊消费（大件、数码、旅游、娱乐、医美、非日常开销）\n" +
+            "- 先判断是否餐饮：早餐/午餐/晚餐/夜宵/饮料（可乐、奶茶、咖啡、果汁、水等）/零食/水果/外卖 → type=1（日常消费）\n" +
+            "- 不属于餐饮的一律 type=2（特殊消费），例如交通、日用品、话费、房租、数码、旅游、娱乐、医美、大件等\n" +
+            "- 示例：午餐25→type=1，可乐3→type=1，奶茶12→type=1，打车30→type=2，买键盘399→type=2\n" +
             "- day 是 1-" + days + " 的日期；说\"今天\"填 " + day + "，说\"昨天\"填 " + yesterday + "，没提日期就填 " + day + "\n" +
             "- 金额必须为正数；一句话里有多笔就拆成多条\n" +
             "- goods 用简短中文概括，例如\"牛肉面\"\"打车\"\"奶茶\"\n" +
@@ -129,7 +131,7 @@ public class AiAssistant {
             double price = Json.num(m.get("price"), 0);
             if (price <= 0) continue;
 
-            int type = Json.i(m.get("type"), 1);
+            int type = Json.i(m.get("type"), 2);
             if (type != 2) type = 1;
 
             int d = Json.i(m.get("day"), day);
