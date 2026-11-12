@@ -87,7 +87,8 @@ def _justify_main(parent: Rect, children: list[Rect], direction: str,
 
 
 def compute_container(node: Node) -> tuple[dict | None, float | None]:
-    children = [c.rect for c in node.children]
+    # fill 是背景层（兄弟节点），参与 padding/childrenSpan，但不参与主轴方向判定
+    children = [c.rect for c in node.children if c.kind != "fill"]
     if not children:
         return None, None
 

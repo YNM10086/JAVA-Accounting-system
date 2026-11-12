@@ -96,6 +96,16 @@ def test_justify_stays_center_for_a_padded_group():
     assert got["justify"] == "center"
 
 
+def test_background_fill_does_not_break_direction():
+    """铺满容器的背景 fill 是兄弟节点，不该参与主轴方向判定。"""
+    node = container(0, 0, 300, 100, [Rect(0, 0, 140, 50), Rect(160, 0, 140, 50),
+                                      Rect(0, 0, 300, 100)])
+    node.children[2].kind = "fill"
+    got, _ = compute_container(node)
+    assert got["direction"] == "row"
+    assert got["gap"] == 20
+
+
 def test_no_children_returns_none():
     node = Node(kind="box", rect=Rect(0, 0, 10, 10))
     assert compute_container(node) == (None, None)
