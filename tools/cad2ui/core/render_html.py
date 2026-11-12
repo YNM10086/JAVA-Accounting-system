@@ -37,12 +37,11 @@ def _style_attr(node: Node) -> str:
         parts.append(f"background:{s.fill}")
     if s.stroke and node.kind in ("box", "block", "circle"):
         parts.append(f"border:1px solid {s.stroke}")
-    if node.kind == "line":
+    if node.kind == "line" and not node.points:
+        # 两点直线才用背景色块画；有 points 的折线交给内联 SVG，否则会变成实心矩形
         parts.append(f"background:{s.stroke or '#909399'}")
     if node.kind == "circle":
         parts.append("border-radius:50%")
-    if s.rotation:
-        parts.append(f"transform:rotate({s.rotation:g}deg)")
     return ";".join(parts)
 
 

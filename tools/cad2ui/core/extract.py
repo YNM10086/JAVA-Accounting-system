@@ -198,5 +198,11 @@ def extract(loaded: LoadedDrawing, width: int = 1440,
     if not elements:
         raise NoGeometry("图纸里没有可识别的界面实体")
 
+    # spec 7.1：fill 的 z 最低，否则铺满画布的背景填充会盖住整张图
+    fills = [e for e in elements if e.kind == "fill"]
+    others = [e for e in elements if e.kind != "fill"]
+    for i, element in enumerate(fills + others):
+        element.z = i
+
     canvas = Canvas(width=width, height=round(dh * scale), scale=round(scale, 4))
     return elements, warnings, canvas

@@ -86,6 +86,16 @@ def test_text_only_drawing_does_not_crash(tmp_path):
     assert [e.kind for e in elements] == ["text"]
 
 
+def test_fill_gets_lowest_z(tmp_path):
+    """spec 7.1：SOLID/HATCH 的 z 最低，否则背景会盖住整张图。"""
+    loaded = load_drawing(make_login_dxf(tmp_path / "login.dxf"), tmp_path)
+    elements, _, _ = extract(loaded)
+    fill_z = [e.z for e in elements if e.kind == "fill"]
+    other_z = [e.z for e in elements if e.kind != "fill"]
+    assert fill_z and other_z
+    assert max(fill_z) < min(other_z)
+
+
 def test_empty_drawing_raises_no_geometry(tmp_path):
     loaded = load_drawing(make_empty_dxf(tmp_path / "e.dxf"), tmp_path)
     with pytest.raises(NoGeometry):

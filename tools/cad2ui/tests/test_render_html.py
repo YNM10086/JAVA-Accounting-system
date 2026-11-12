@@ -50,3 +50,33 @@ def test_points_shape_uses_svg_polygon(tmp_path):
     render_html(layout, {"file": "a.dxf", "via": "dxf", "entityCount": 1}, out)
     html = out.read_text(encoding="utf-8")
     assert "<polygon" in html
+
+
+def _node_div(html: str, node_id: str) -> str:
+    m = re.search(r'<div class="node" data-cad-node="%s".*?</div>' % node_id, html)
+    assert m, f"节点 {node_id} 未渲染"
+    return m.group(0)
+
+
+def test_open_polyline_is_not_painted_as_a_box(tmp_path):
+    line = Node(kind="line", type="line", rect=Rect(0, 0, 100, 50), z=1, id="n1",
+                points=[(0, 50), (100, 50), (100, 0)], style=Style(stroke="#303133"))
+    layout = Layout(title="t", canvas=Canvas(100, 50, 1.0), tree=[line],
+                    nodes=[line], warnings=[], stats={})
+    out = tmp_path / "p.html"
+    render_html(layout, {"file": "a.dxf", "via": "dxf", "entityCount": 1}, out)
+    div = _node_div(out.read_text(encoding="utf-8"), "n1")
+    assert "<polyline" in div
+    assert "background:" not in div        # 否则折线会被画成实心矩形
+
+
+def test_rotation_is_not_reapplied_to_bbox(tmp_path):
+    """rect 已是旋转后的 AABB，再套 CSS rotate 会二次旋转且方向相反。"""
+    block = Node(kind="block", type="card", rect=Rect(0, 0, 40, 240), z=1, id="n1",
+                 style=Style(stroke="#409EFF", rotation=90))
+    layout = Layout(title="t", canvas=Canvas(100, 300, 1.0), tree=[block],
+                    nodes=[block], warnings=[], stats={})
+    out = tmp_path / "p.html"
+    render_html(layout, {"file": "a.dxf", "via": "dxf", "entityCount": 1}, out)
+    html = out.read_text(encoding="utf-8")
+    assert "rotate(" not in html
