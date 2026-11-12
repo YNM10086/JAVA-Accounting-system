@@ -19,7 +19,7 @@
   - `lib/` — 依赖 jar（MySQL Connector、Apache POI；POI 供归档用）
   - `out/` — 编译输出
   - `desktop/` — Electron 桌面版（`main.js` 起 Java 子进程并开窗口、`build.ps1` 出 NSIS 安装包、`build/icon.ico` 图标）
-  - `tools/icon/IconGen.java` — 原创图标生成器（Java2D → 多尺寸 ICO）
+  - `tools/icon/IconGen.java` — 原创图标生成器（Java2D → 多尺寸 ICO；默认 f 黑白叠页，`build.ps1` 每次构建自动重生成）
   - `tools/page-preview/` — 不连 MySQL 的页面预览截图工具
 - 跨年归档机制：
   - 12 张表 `table_01`~`table_12` 按月循环、**无年份字段**；`records/.current_year` 记住当前数据属于哪年

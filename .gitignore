@@ -33,6 +33,7 @@ desktop.ini
 desktop/node_modules/
 desktop/runtime/
 desktop/dist/
+desktop/build/icon-sizes.png
 
 # === superpowers 执行台账（本地 scratch） ===
 .superpowers/

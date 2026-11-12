@@ -25,7 +25,7 @@ $libDst = Join-Path $runtime 'lib'
 $staticDst = Join-Path $runtime 'static'
 $jre = Join-Path $runtime 'jre'
 
-# ---------- 0/6 版本号 ----------
+# ---------- 版本号 ----------
 if ($Version) {
     if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "版本号格式应为 1.2.3，收到：$Version" }
     $pkgPath = Join-Path $desktop 'package.json'
@@ -35,18 +35,29 @@ if ($Version) {
     Write-Host "== 版本号 -> $Version ==" -ForegroundColor Cyan
 }
 
-Write-Host '== 1/5 编译 Java ==' -ForegroundColor Cyan
+# ---------- 0/6 图标 ----------
+Write-Host '== 0/6 生成应用图标 ==' -ForegroundColor Cyan
+$iconClasses = Join-Path $root '.build_tmp\icon'
+$iconSource = Join-Path $root 'tools\icon\IconGen.java'
+$iconOut = Join-Path $desktop 'build\icon.ico'
+New-Item -ItemType Directory -Force -Path $iconClasses | Out-Null
+& javac -encoding UTF-8 -d $iconClasses $iconSource
+if ($LASTEXITCODE -ne 0) { throw '图标生成器编译失败' }
+& java -cp $iconClasses IconGen $iconOut
+if ($LASTEXITCODE -ne 0) { throw '图标生成失败' }
+
+Write-Host '== 1/6 编译 Java ==' -ForegroundColor Cyan
 Remove-Item -Recurse -Force $classes -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $classes, $libDst, $staticDst | Out-Null
 $sources = @(Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.java | ForEach-Object { $_.FullName })
 & javac -encoding UTF-8 --release 17 -cp "$root\lib\*" -d $classes @sources
 if ($LASTEXITCODE -ne 0) { throw 'Java 编译失败' }
 
-Write-Host '== 2/5 复制依赖与静态资源 ==' -ForegroundColor Cyan
+Write-Host '== 2/6 复制依赖与静态资源 ==' -ForegroundColor Cyan
 Copy-Item (Join-Path $root 'lib\*.jar') $libDst -Force
 Copy-Item (Join-Path $root 'static\*') $staticDst -Force -Recurse
 
-Write-Host '== 3/5 打包精简 JRE ==' -ForegroundColor Cyan
+Write-Host '== 3/6 打包精简 JRE ==' -ForegroundColor Cyan
 if ($SkipJre) {
     Write-Host '   已跳过（目标机需自备 JDK 17+）'
 } elseif (Test-Path (Join-Path $jre 'bin\java.exe')) {
@@ -57,7 +68,7 @@ if ($SkipJre) {
     if ($LASTEXITCODE -ne 0) { throw 'jlink 打包 JRE 失败' }
 }
 
-Write-Host '== 4/5 安装 npm 依赖 ==' -ForegroundColor Cyan
+Write-Host '== 4/6 安装 npm 依赖 ==' -ForegroundColor Cyan
 Push-Location $desktop
 try {
     if ($SkipNpm -or (Test-Path (Join-Path $desktop 'node_modules'))) {
@@ -67,7 +78,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'npm install 失败' }
     }
 
-    Write-Host '== 5/5 打包安装程序 ==' -ForegroundColor Cyan
+    Write-Host '== 5/6 打包安装程序 ==' -ForegroundColor Cyan
     $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
     $env:ELECTRON_BUILDER_BINARIES_MIRROR = 'https://npmmirror.com/mirrors/electron-builder-binaries/'
 

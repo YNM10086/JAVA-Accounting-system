@@ -12,14 +12,17 @@ import java.util.List;
 /**
  * 生成应用图标（原创几何图形，不依赖任何外部素材）。
  *
- * 三种抽象风格：
- *   a 光环  — 实心圆 + 三道同心圆环（光向外扩散）
- *   b 涟漪  — 实心圆 + 下方三道同心弧（水面倒影）
- *   c 极简  — 实心圆 + 一道水平线 + 半圆倒影
+ * 风格：
+ *   f 叠页 — 深色底板 + 三层错位圆角方块 + 账目线（默认）
+ *   d 账目 — 深色底板 + 白色圆角外框 + 三条由白到灰的账目线
+ *   e 叠页 — 深色底板 + 三层错位圆角方块（无账目线）
+ *   a 光环  — 旧暖色方案（保留备用）
+ *   b 涟漪  — 旧暖色方案（保留备用）
+ *   c 极简  — 旧暖色方案（保留备用）
  *
  * 用法：
  *   javac -encoding UTF-8 -d .build_tmp/icon tools/icon/IconGen.java
- *   java -cp .build_tmp/icon IconGen desktop/build/icon.ico [a|b|c]
+ *   java -cp .build_tmp/icon IconGen desktop/build/icon.ico [f|d|e|a|b|c]
  *
  * 输出：多尺寸 PNG 压缩的 ICO（16/24/32/48/64/128/256），Windows Vista+ 原生支持。
  */
@@ -33,9 +36,15 @@ public class IconGen {
             new Color(0xF2, 0x8C, 0x33)
     };
 
+    private static final Color INK = new Color(0x0B, 0x0C, 0x0F);
+    private static final Color PAPER = new Color(0xF4, 0xF6, 0xF8);
+    private static final Color GRAY_LIGHT = new Color(0xA9, 0xAF, 0xB9);
+    private static final Color GRAY_MID = new Color(0x6B, 0x71, 0x7B);
+    private static final Color GRAY_DARK = new Color(0x4B, 0x51, 0x5B);
+
     public static void main(String[] args) throws Exception {
         File out = new File(args.length > 0 ? args[0] : "desktop/build/icon.ico");
-        String style = args.length > 1 ? args[1] : "a";
+        String style = args.length > 1 ? args[1] : "f";
         out.getParentFile().mkdirs();
 
         List<byte[]> pngs = new ArrayList<>();
@@ -104,18 +113,67 @@ public class IconGen {
 
         RoundRectangle2D plate = new RoundRectangle2D.Float(8, 8, 240, 240, 56, 56);
         g.setClip(plate);
-        g.setPaint(new GradientPaint(0, 0, new Color(0x15, 0x2A, 0x47),
-                                     0, 256, new Color(0x05, 0x0B, 0x14)));
+        g.setPaint(new GradientPaint(0, 0, new Color(0x17, 0x19, 0x1D),
+                                     0, 256, new Color(0x07, 0x08, 0x0A)));
         g.fill(plate);
 
         switch (style) {
+            case "e": drawStack(g);  break;
+            case "f": drawStackLines(g); break;
+            case "a": drawHalo(g);   break;
             case "b": drawRipple(g); break;
-            case "c": drawMinimal(g); break;
-            default:  drawHalo(g);  break;
+            case "c": drawMinimal(g);break;
+            default:  drawLedger(g); break;
         }
 
         g.dispose();
         return img;
+    }
+
+    /* ---------- d：白色圆角外框 + 三条账目线 ---------- */
+    private static void drawLedger(Graphics2D g) {
+        g.setColor(PAPER);
+        g.setStroke(new BasicStroke(22f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(new RoundRectangle2D.Float(50, 50, 156, 156, 38, 38));
+
+        g.setColor(PAPER);
+        g.fill(new RoundRectangle2D.Float(76, 80, 104, 22, 8, 8));
+        g.setColor(GRAY_LIGHT);
+        g.fill(new RoundRectangle2D.Float(76, 117, 80, 22, 8, 8));
+        g.setColor(GRAY_MID);
+        g.fill(new RoundRectangle2D.Float(76, 154, 56, 22, 8, 8));
+    }
+
+    /* ---------- e：三层错位圆角方块（叠页） ---------- */
+    private static void drawStack(Graphics2D g) {
+        g.setStroke(new BasicStroke(12f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+        g.setColor(GRAY_DARK);
+        g.fill(new RoundRectangle2D.Float(100, 100, 100, 100, 24, 24));
+        g.setColor(INK);
+        g.draw(new RoundRectangle2D.Float(100, 100, 100, 100, 24, 24));
+
+        g.setColor(GRAY_LIGHT);
+        g.fill(new RoundRectangle2D.Float(78, 78, 100, 100, 24, 24));
+        g.setColor(INK);
+        g.draw(new RoundRectangle2D.Float(78, 78, 100, 100, 24, 24));
+
+        g.setColor(PAPER);
+        g.fill(new RoundRectangle2D.Float(56, 56, 100, 100, 24, 24));
+        g.setColor(INK);
+        g.draw(new RoundRectangle2D.Float(56, 56, 100, 100, 24, 24));
+    }
+
+    /* ---------- f：叠页 + 账目线 ---------- */
+    private static void drawStackLines(Graphics2D g) {
+        drawStack(g);
+
+        g.setColor(GRAY_LIGHT);
+        g.fill(new RoundRectangle2D.Float(74, 80, 60, 10, 5, 5));
+        g.setColor(GRAY_MID);
+        g.fill(new RoundRectangle2D.Float(74, 101, 46, 10, 5, 5));
+        g.setColor(GRAY_DARK);
+        g.fill(new RoundRectangle2D.Float(74, 122, 32, 10, 5, 5));
     }
 
     /* ---------- a：实心圆 + 同心圆环 ---------- */
