@@ -217,9 +217,11 @@ height = bbox.height * scale          # 画布高度，按宽等比、高度自�
 - `gap`：沿主轴相邻子节点的间距，取**中位数**并取整；`direction` 为 `null` 时 `null`。
 - `padding`：`[上, 右, 下, 左]`，由容器 rect 减去子节点并集得到，取整，负值归 0。
 - `align`：交叉轴上子节点对齐方式——全贴左→`start`、全贴右→`end`、
-  居中偏差最小→`center`、宽度都约等于容器内宽→`stretch`。
-- `justify`：主轴上首/尾留白都小→`start`；都大→`center`；
-  只有尾留白大→`start`；只有首留白大→`end`；间距均匀且首尾留白≈间距→`space-between`。
+  居中偏差最小→`center`、交叉尺寸彼此一致且都 ≥ 容器 80%→`stretch`
+  （`padding` 是从子节点反推的，因此不能拿"内容区宽度"当 `stretch` 的判据）。
+- `justify`：主轴上首/尾留白都小→`start`（此时间距均匀且 > 0 → `space-between`，
+  这是 CSS 里最常见的贴边均分）；都大→`center`；只有尾留白大→`start`；
+  只有首留白大→`end`；间距均匀且首尾留白≈间距→`space-between`。
 - `childrenSpan`：子节点并集包围盒（给 AI 校验用）。
 - `computed` 是**启发式结论**，节点上另带 `computedConfidence`（0–1），
   由判据一致度给出，供 AI 判断要不要信。

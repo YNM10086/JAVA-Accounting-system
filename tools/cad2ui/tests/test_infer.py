@@ -15,11 +15,11 @@ def text_el(x, y, w, h, content, size=16.0):
                    style=Style(font_size=size))
 
 
-def infer_one(elements, mapping=None, width=1440):
+def infer_one(elements, mapping=None, width=1440, height=900):
     warnings = []
     tree = build_tree(elements, warnings)
     assign_ids(tree)
-    apply_types(tree, mapping or {}, width, warnings)
+    apply_types(tree, mapping or {}, width, warnings, canvas_height=height)
     return tree[0], warnings
 
 
@@ -84,6 +84,27 @@ def test_unknown_block_warning():
     b = box(600, 600, 260, 60, block="weird_thing")
     _, warnings = infer_one([b])
     assert any(w.code == "UNKNOWN_BLOCK" for w in warnings)
+
+
+def test_hints_keep_the_label_entity():
+    """label 的 handle 会以 hint 形式保留，方便回 CAD 定位。"""
+    b = box(100, 100, 150, 100)
+    t = text_el(110, 110, 100, 20, "随便")
+    node, _ = infer_one([b, t])
+    assert any(h.startswith("label:") for h in node.hints)
+
+
+def test_layer_contract_is_case_insensitive():
+    frame = box(0, 0, 1440, 900, layer="ui-frame")
+    node, _ = infer_one([frame])
+    assert node.type == "frame"
+
+
+def test_footer_uses_the_actual_canvas_height():
+    """1440×2560 的长页，中部宽条不该被判成 footer。"""
+    b = box(0, 1900, 1440, 100)
+    node, _ = infer_one([b], height=2560)
+    assert node.type != "footer"
 
 
 def test_empty_label_warning_for_button():

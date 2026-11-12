@@ -18,12 +18,12 @@ def _lookup(table: dict, key: str | None) -> str | None:
     return None
 
 
-def _size_type(node: Node, k: float) -> str | None:
+def _size_type(node: Node, k: float, canvas_height: float = 900.0) -> str | None:
     r = node.rect
     if r.w >= 1260 * k:
         if r.y <= 80 * k:
             return "header"
-        if r.bottom >= 820 * k:
+        if r.bottom >= (canvas_height - 80) * k:
             return "footer"
     if r.h <= 56 * k and 40 * k <= r.w <= 320 * k and node.label:
         return "button"
@@ -34,12 +34,13 @@ def _size_type(node: Node, k: float) -> str | None:
     return None
 
 
-def infer_type(node: Node, mapping: dict, canvas_width: int = 1440
-               ) -> tuple[str, float, list[str]]:
+def infer_type(node: Node, mapping: dict, canvas_width: int = 1440,
+               canvas_height: float = 900.0) -> tuple[str, float, list[str]]:
     k = canvas_width / 1440.0
     hints: list[str] = []
 
-    contract = LAYER_CONTRACT.get(node.layer)
+    # 图层契约大小写不敏感，和 match_layer 的行为保持一致
+    contract = LAYER_CONTRACT.get(node.layer.upper())
     if contract:
         return contract, 1.0, [f"layer:{node.layer}"]
 
@@ -62,7 +63,7 @@ def infer_type(node: Node, mapping: dict, canvas_width: int = 1440
     if hit:
         return hit, 0.85, hints + [f"keyword:layer:{node.layer}"]
 
-    hit = _size_type(node, k)
+    hit = _size_type(node, k, canvas_height)
     if hit:
         return hit, 0.5, hints + [f"size:{hit}"]
 
@@ -70,11 +71,14 @@ def infer_type(node: Node, mapping: dict, canvas_width: int = 1440
 
 
 def apply_types(tree: list[Node], mapping: dict, canvas_width: int,
-                warnings: list[Warning]) -> None:
+                warnings: list[Warning], canvas_height: float = 900.0) -> None:
     stack = list(tree)
     while stack:
         node = stack.pop()
-        node.type, node.confidence, node.hints = infer_type(node, mapping, canvas_width)
+        kept = list(node.hints)
+        node.type, node.confidence, hints = infer_type(node, mapping, canvas_width,
+                                                       canvas_height)
+        node.hints = kept + [h for h in hints if h not in kept]
 
         if node.type == "unknown" and node.block:
             warnings.append(Warning(

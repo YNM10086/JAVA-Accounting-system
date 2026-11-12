@@ -87,6 +87,11 @@ def build_tree(elements: list[Element], warnings: list[Warning]) -> list[Node]:
     for pid, (_, e) in best.items():
         node = nodes[pid]
         node.label = e.text
+        # 文字节点被消费掉了，字号/颜色必须留在容器上，否则渲染全按默认 14px
+        if e.style.font_size:
+            node.style.font_size = e.style.font_size
+        if e.style.color:
+            node.style.color = e.style.color
         node.hints.append(f"label:{e.handle}")
         consumed = nodes[id(e)]
         node.children = [c for c in node.children if c is not consumed]

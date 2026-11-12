@@ -27,40 +27,55 @@ def _union(rects: list[Rect]) -> Rect:
 
 def _align_cross(parent: Rect, children: list[Rect], direction: str) -> str:
     if direction == "column":
-        if all(abs(c.w - parent.w) <= 2 for c in children):
-            return "stretch"
-        left = [c.x - parent.x for c in children]
-        right = [parent.right - c.right for c in children]
+        sizes = [c.w for c in children]
+        extent = parent.w
+        start_gap = [c.x - parent.x for c in children]
+        end_gap = [parent.right - c.right for c in children]
     else:
-        if all(abs(c.h - parent.h) <= 2 for c in children):
-            return "stretch"
-        left = [c.y - parent.y for c in children]
-        right = [parent.bottom - c.bottom for c in children]
+        sizes = [c.h for c in children]
+        extent = parent.h
+        start_gap = [c.y - parent.y for c in children]
+        end_gap = [parent.bottom - c.bottom for c in children]
 
-    spread_start = max(left) - min(left)
-    spread_end = max(right) - min(right)
-    spread_center = max(abs(l - r) for l, r in zip(left, right))
+    # 交叉尺寸一致且占到容器 80% 以上 → stretch（padding 是从子节点反推的，不能直接和它比）
+    if extent > 0 and max(sizes) - min(sizes) <= 2 and min(sizes) >= 0.8 * extent:
+        return "stretch"
 
-    candidates = [(spread_start, 0, "start"), (spread_end, 1, "end"),
-                  (spread_center, 2, "center")]
-    return min(candidates, key=lambda c: (c[0], c[1]))[2]
+    spread_start = max(start_gap) - min(start_gap)
+    spread_end = max(end_gap) - min(end_gap)
+
+    # 左右留白各自一致：留白为 0 → 贴边（start），留白相等且 > 0 → 居中
+    if spread_start <= 1 and spread_end <= 1:
+        if min(start_gap) > 2 and min(end_gap) > 2:
+            return "center"
+        return "start"
+
+    best = min(spread_start, spread_end)
+    if spread_start <= best + 1:
+        return "start"
+    if spread_end <= best + 1:
+        return "end"
+    return "center"
 
 
 def _justify_main(parent: Rect, children: list[Rect], direction: str,
-                  gap: float | None) -> str | None:
+                  gap: float | None, gaps_uniform: bool) -> str | None:
     if direction is None:
         return None
     if direction == "row":
-        start, end = parent.x, parent.right
-        lead = min(c.x for c in children) - start
-        trail = end - max(c.right for c in children)
+        lead = min(c.x for c in children) - parent.x
+        trail = parent.right - max(c.right for c in children)
     else:
-        start, end = parent.y, parent.bottom
-        lead = min(c.y for c in children) - start
-        trail = end - max(c.bottom for c in children)
+        lead = min(c.y for c in children) - parent.y
+        trail = parent.bottom - max(c.bottom for c in children)
 
     lead, trail = max(0.0, lead), max(0.0, trail)
-    if gap and gap > 0 and abs(lead - gap) <= 2 and abs(trail - gap) <= 2:
+    distributed = bool(gap and gap > 0 and gaps_uniform)
+
+    if lead <= 2 and trail <= 2:
+        # 首尾都贴边且间距均匀 → 真实的 CSS space-between
+        return "space-between" if distributed else "start"
+    if distributed and abs(lead - gap) <= 2 and abs(trail - gap) <= 2:
         return "space-between"
     if lead <= 2:
         return "start"
@@ -104,6 +119,7 @@ def compute_container(node: Node) -> tuple[dict | None, float | None]:
         direction = None
 
     gap = None
+    gaps_uniform = False
     conf = 0.9
     if direction:
         axis = 0 if direction == "row" else 1
@@ -115,6 +131,7 @@ def compute_container(node: Node) -> tuple[dict | None, float | None]:
             else:
                 gaps.append(nxt.y - prev.bottom)
         gap = max(0, int(round(median(gaps))))
+        gaps_uniform = (max(gaps) - min(gaps)) <= 2
         if max(gaps) - min(gaps) > 4:
             conf -= 0.2
         align = _align_cross(parent, children, direction)
@@ -122,7 +139,7 @@ def compute_container(node: Node) -> tuple[dict | None, float | None]:
         conf = 0.3
         align = "start"
 
-    justify = _justify_main(parent, children, direction, gap)
+    justify = _justify_main(parent, children, direction, gap, gaps_uniform)
 
     return {
         "direction": direction,

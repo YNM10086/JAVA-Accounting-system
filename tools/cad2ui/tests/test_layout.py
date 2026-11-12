@@ -75,6 +75,16 @@ def test_label_prefers_largest_font(tmp_path):
     assert [c.text for c in node.children] == ["描述"]
 
 
+def test_label_keeps_font_size_and_color(tmp_path):
+    """label 的文字被消费掉了，字号/颜色必须留在容器上，否则渲染全变 14px。"""
+    import pytest
+
+    _, flat, _ = build(tmp_path)
+    card = find(flat, label="登录")
+    assert card.style.font_size == pytest.approx(28, abs=0.5)
+    assert any(h.startswith("label:") for h in card.hints)
+
+
 def test_text_outside_any_box_stays_root(tmp_path):
     loaded = load_drawing(make_warning_dxf(tmp_path / "w.dxf"), tmp_path)
     elements, warnings, _ = extract(loaded)

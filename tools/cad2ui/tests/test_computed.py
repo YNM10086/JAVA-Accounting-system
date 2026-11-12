@@ -63,6 +63,39 @@ def test_irregular_layout_returns_none_direction():
     assert got["direction"] is None
 
 
+def test_align_stretch_respects_padding():
+    """子节点铺满"内容区"（而不是外框）时就是 stretch。"""
+    node = container(0, 0, 300, 400, [Rect(16, 16, 268, 100), Rect(16, 140, 268, 100)])
+    got, _ = compute_container(node)
+    assert got["padding"] == [16, 16, 160, 16]
+    assert got["align"] == "stretch"
+
+
+def test_align_center_when_children_are_inset_symmetrically():
+    """左右留白相等的居中表单，不该报 start。"""
+    node = container(0, 0, 300, 200, [Rect(50, 0, 200, 50), Rect(50, 80, 200, 50)])
+    got, _ = compute_container(node)
+    assert got["align"] == "center"
+
+
+def test_justify_space_between_when_flush_at_both_edges():
+    """真实 CSS space-between：首尾贴边、间距相等。"""
+    node = container(0, 0, 300, 100, [Rect(0, 0, 50, 50), Rect(125, 0, 50, 50),
+                                      Rect(250, 0, 50, 50)])
+    got, _ = compute_container(node)
+    assert got["gap"] == 75
+    assert got["justify"] == "space-between"
+
+
+def test_justify_stays_center_for_a_padded_group():
+    """内边距对称但间距与留白不等时，仍是居中（不代表 space-between）。"""
+    node = container(0, 0, 400, 100, [Rect(16, 0, 50, 50), Rect(175, 0, 50, 50),
+                                      Rect(334, 0, 50, 50)])
+    got, _ = compute_container(node)
+    assert got["padding"] == [0, 16, 50, 16]
+    assert got["justify"] == "center"
+
+
 def test_no_children_returns_none():
     node = Node(kind="box", rect=Rect(0, 0, 10, 10))
     assert compute_container(node) == (None, None)

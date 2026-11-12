@@ -69,7 +69,7 @@ def run(ns: argparse.Namespace) -> int:
     flat = assign_ids(tree)
 
     mapping = load_mapping(ns.map_file) if ns.map_file else {"blocks": {}, "layers": {}}
-    apply_types(tree, mapping, canvas.width, warnings)
+    apply_types(tree, mapping, canvas.width, warnings, canvas_height=canvas.height)
     apply_computed(tree)
 
     layout = Layout(
