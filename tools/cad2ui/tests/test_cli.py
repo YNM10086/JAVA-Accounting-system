@@ -63,6 +63,20 @@ def test_missing_file_exit_code_3(tmp_path):
     assert main([str(tmp_path / "nope.dxf"), "-o", str(tmp_path / "out")]) == 3
 
 
+def test_corrupt_dxf_exit_code_3(tmp_path):
+    p = tmp_path / "bad.dxf"
+    p.write_bytes(b"\x00\x01not a dxf")
+    assert main([str(p), "-o", str(tmp_path / "out")]) == 3
+
+
+def test_failed_run_leaves_no_empty_output_dir(tmp_path):
+    p = tmp_path / "bad.dxf"
+    p.write_bytes(b"\x00\x01not a dxf")
+    out = tmp_path / "out"
+    assert main([str(p), "-o", str(out)]) == 3
+    assert not out.exists()
+
+
 def test_unsupported_suffix_exit_code_2(tmp_path):
     p = tmp_path / "a.pdf"
     p.write_text("x", encoding="utf-8")

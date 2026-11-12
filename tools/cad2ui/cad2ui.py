@@ -60,7 +60,6 @@ def _stats(nodes) -> dict:
 def run(ns: argparse.Namespace) -> int:
     src = Path(ns.input)
     out_dir = Path(ns.out) if ns.out else Path("out") / src.stem
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     loaded = load_drawing(src, out_dir, keep_dxf=ns.keep_dxf)
     elements, warnings, canvas = extract(loaded, width=ns.width,

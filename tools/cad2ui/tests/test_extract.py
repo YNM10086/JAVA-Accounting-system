@@ -96,6 +96,61 @@ def test_fill_gets_lowest_z(tmp_path):
     assert max(fill_z) < min(other_z)
 
 
+def test_missing_layer_table_entry_does_not_crash(tmp_path):
+    """实体引用未定义的图层时，取默认色而不是整体崩掉。"""
+    import ezdxf
+
+    doc = ezdxf.new("R2010")
+    msp = doc.modelspace()
+    msp.add_lwpolyline([(0, 0), (100, 0), (100, 40), (0, 40)], close=True,
+                       dxfattribs={"layer": "MISSING"})
+    path = tmp_path / "missing.dxf"
+    doc.saveas(path)
+
+    loaded = load_drawing(path, tmp_path)
+    elements, warnings, _ = extract(loaded)
+    assert elements[0].style.stroke is not None
+    assert any(w.code == "COLOR_APPROX" for w in warnings)
+
+
+def test_layer_switched_off_uses_absolute_color(tmp_path):
+    """负的图层颜色表示图层关闭，不是未知色。"""
+    import ezdxf
+
+    doc = ezdxf.new("R2010")
+    layer = doc.layers.add("OFFLAYER")
+    layer.dxf.color = -5          # 负值 = 图层关闭，ezdxf 的 add(color=) 不允许负值
+    msp = doc.modelspace()
+    msp.add_lwpolyline([(0, 0), (100, 0), (100, 40), (0, 40)], close=True,
+                       dxfattribs={"layer": "OFFLAYER"})
+    path = tmp_path / "off.dxf"
+    doc.saveas(path)
+
+    loaded = load_drawing(path, tmp_path)
+    elements, warnings, _ = extract(loaded)
+    assert elements[0].style.stroke == "#409EFF"
+    assert not any(w.code == "COLOR_APPROX" for w in warnings)
+
+
+def test_slightly_off_rectangle_is_still_a_rect(tmp_path):
+    """spec 7.1：顶点容差是 1px（参考坐标），手画的矩形不该被判成异形。"""
+    import ezdxf
+
+    doc = ezdxf.new("R2010")
+    msp = doc.modelspace()
+    msp.add_lwpolyline([(0, 0), (1440, 0), (1440, 900), (0.4, 900)], close=True,
+                       dxfattribs={"layer": "UI-BOX"})
+    path = tmp_path / "off-rect.dxf"
+    doc.saveas(path)
+
+    loaded = load_drawing(path, tmp_path)
+    elements, warnings, _ = extract(loaded)
+    box = [e for e in elements if e.kind == "box"][0]
+    assert box.is_rect is True
+    assert box.points is None
+    assert not any(w.code == "CUT_CORNER_BOX" for w in warnings)
+
+
 def test_empty_drawing_raises_no_geometry(tmp_path):
     loaded = load_drawing(make_empty_dxf(tmp_path / "e.dxf"), tmp_path)
     with pytest.raises(NoGeometry):

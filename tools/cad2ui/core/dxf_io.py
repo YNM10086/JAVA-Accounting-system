@@ -40,10 +40,16 @@ def _read_dxf(path: Path) -> ezdxf.document.Drawing:
         raise ParseError(f"文件不存在：{path}") from None
     except ezdxf.DXFStructureError as exc:
         raise ParseError(f"DXF 结构损坏：{exc}") from exc
+    except (OSError, ValueError) as exc:
+        # ezdxf 对非 DXF 内容抛 OSError("... is not a DXF file.")，最常见的是把 .dwg 改名成 .dxf
+        raise ParseError(
+            f"不是可读的 DXF：{path.name}（若是 DWG 请用 ODA 转换或另存为 DXF）\n{exc}"
+        ) from exc
 
 
 def _convert_dwg(src: Path, work_dir: Path, keep_dxf: bool):
     target = work_dir / f"{src.stem}.cad2ui.dxf"
+    work_dir.mkdir(parents=True, exist_ok=True)
     try:
         from ezdxf.addons import odafc
         if odafc.is_installed():
@@ -53,10 +59,11 @@ def _convert_dwg(src: Path, work_dir: Path, keep_dxf: bool):
             return doc
     except ImportError:
         pass
+    except Exception as exc:
+        raise ConverterUnavailable(f"ODA 转换 DWG 失败：{exc}\n{CONVERTER_HINT}") from exc
 
     exe = shutil.which("dwg2dxf")
     if exe:
-        target.parent.mkdir(parents=True, exist_ok=True)
         proc = subprocess.run([exe, "-y", "-o", str(target), str(src)],
                               capture_output=True, text=True)
         if proc.returncode == 0 and target.exists():
@@ -64,6 +71,9 @@ def _convert_dwg(src: Path, work_dir: Path, keep_dxf: bool):
             if not keep_dxf:
                 target.unlink(missing_ok=True)
             return doc
+        raise ConverterUnavailable(
+            f"dwg2dxf 转换失败（退出码 {proc.returncode}）：{proc.stderr.strip()[:300]}\n{CONVERTER_HINT}"
+        )
 
     raise ConverterUnavailable(CONVERTER_HINT)
 
@@ -71,12 +81,11 @@ def _convert_dwg(src: Path, work_dir: Path, keep_dxf: bool):
 def load_drawing(path: Path, work_dir: Path, keep_dxf: bool = False) -> LoadedDrawing:
     path = Path(path)
     suffix = path.suffix.lower()
-    work_dir.mkdir(parents=True, exist_ok=True)
 
     if suffix == ".dxf":
         doc, via = _read_dxf(path), "dxf"
     elif suffix == ".dwg":
-        doc, via = _convert_dwg(path, work_dir, keep_dxf), "dwg->dxf"
+        doc, via = _convert_dwg(path, Path(work_dir), keep_dxf), "dwg->dxf"
     else:
         raise ConverterUnavailable(
             f"不支持的输入类型 {suffix or '(无扩展名)'}；只接受 .dwg / .dxf。\n{CONVERTER_HINT}"

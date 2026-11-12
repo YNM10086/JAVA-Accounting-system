@@ -72,11 +72,21 @@ def _polygon_points(entity) -> list[tuple[float, float]]:
 
 
 def _is_axis_rect(points: list[tuple[float, float]], tol: float) -> bool:
+    """顶点是否只落在两条竖边、两条横边上；tol 是参考坐标下的 1px。"""
     if len(points) not in (4, 5):
         return False
-    xs = sorted({round(p[0] / tol) for p in points})
-    ys = sorted({round(p[1] / tol) for p in points})
-    return len(xs) == 2 and len(ys) == 2
+
+    def only_two(values: list[float]) -> bool:
+        first = values[0]
+        rest = [v for v in values if abs(v - first) > tol]
+        if not rest:
+            return False
+        second = rest[0]
+        return abs(second - first) > tol and all(
+            abs(v - first) <= tol or abs(v - second) <= tol for v in values
+        )
+
+    return only_two([p[0] for p in points]) and only_two([p[1] for p in points])
 
 
 def extract(loaded: LoadedDrawing, width: int = 1440,
@@ -103,7 +113,8 @@ def extract(loaded: LoadedDrawing, width: int = 1440,
     dh = max(by1 - by0, 1e-6)
     scale = width / dw
     ref_scale = 1440.0 / dw
-    tol = max(dw, dh) * 1e-6
+    # spec 7.1：顶点容差 1px（参考坐标） = dw/1440 图纸单位
+    tol = dw / 1440.0
 
     def to_rect(x0, y0, x1, y1, s) -> Rect:
         return Rect(
@@ -135,11 +146,10 @@ def extract(loaded: LoadedDrawing, width: int = 1440,
             continue
 
         layer = entity.dxf.get("layer", "0")
-        color, aci = resolve_aci(loaded.doc, entity)
+        color, aci, reason = resolve_aci(loaded.doc, entity)
         if color is None:
             color = FALLBACK
-            warnings.append(Warning("COLOR_APPROX", entity.dxf.handle, etype, rect,
-                                    f"ACI {aci} 超出 0-9 标准色，使用近似灰"))
+            warnings.append(Warning("COLOR_APPROX", entity.dxf.handle, etype, rect, reason))
 
         style = Style()
         text = None

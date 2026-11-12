@@ -26,6 +26,13 @@ def test_missing_file_raises_parse_error(tmp_path):
         load_drawing(tmp_path / "nope.dxf", tmp_path)
 
 
+def test_non_dxf_content_raises_parse_error(tmp_path):
+    p = tmp_path / "bad.dxf"
+    p.write_bytes(b"\x00\x01not a dxf")
+    with pytest.raises(ParseError):
+        load_drawing(p, tmp_path)
+
+
 def test_unsupported_suffix(tmp_path):
     p = tmp_path / "a.txt"
     p.write_text("x", encoding="utf-8")

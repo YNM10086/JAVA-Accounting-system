@@ -16,12 +16,23 @@ ACI_PALETTE: dict[int, str] = {
 FALLBACK = "#888888"
 
 
-def resolve_aci(doc, entity) -> tuple[str | None, int]:
-    """返回 (十六进制, ACI)；BYLAYER/BYBLOCK 已解析。0-9 之外返回 (None, aci)。"""
-    aci = int(entity.dxf.get("color", 256))
+def resolve_aci(doc, entity) -> tuple[str | None, int, str | None]:
+    """返回 (十六进制, ACI, 降级原因)。BYLAYER/BYBLOCK 已解析，颜色为 None 时带原因。"""
+    aci = abs(int(entity.dxf.get("color", 256)))
+
     if aci == 256:
-        layer = doc.layers.get(entity.dxf.get("layer", "0"))
-        aci = int(layer.dxf.color)
+        layer_name = entity.dxf.get("layer", "0")
+        try:
+            layer = doc.layers.get(layer_name)
+        except Exception:
+            # 实体引用了不在图层表里的图层（手改 DXF / 部分导出很常见）
+            return None, 256, f"图层 {layer_name} 不在图层表里，颜色取近似灰"
+        # 负值表示图层关闭，取绝对值才是索引色
+        aci = abs(int(layer.dxf.color))
+
     if aci == 0:
         aci = 7
-    return ACI_PALETTE.get(aci), aci
+
+    color = ACI_PALETTE.get(aci)
+    reason = None if color else f"ACI {aci} 超出 0-9 标准色，使用近似灰"
+    return color, aci, reason
