@@ -49,10 +49,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return ns
 
 
+STATS_KEYS = {"box": "boxes", "text": "texts", "line": "lines",
+              "fill": "fills", "block": "blocks", "circle": "circles"}
+
+
 def _stats(nodes) -> dict:
+    """spec 8.1 的 stats 键是复数形式（boxes/texts/...），不是 kind 原值。"""
     counts: dict[str, int] = {}
     for node in nodes:
-        counts[node.kind] = counts.get(node.kind, 0) + 1
+        key = STATS_KEYS.get(node.kind, f"{node.kind}s")
+        counts[key] = counts.get(key, 0) + 1
     counts["total"] = len(nodes)
     return counts
 
@@ -82,10 +88,11 @@ def run(ns: argparse.Namespace) -> int:
     )
     source = {"file": src.name, "via": loaded.via, "entityCount": loaded.entity_count}
 
-    dump_json(layout_to_dict(layout, source), out_dir / "layout.json")
-    render_html(layout, source, out_dir / "preview.html")
+    # 渲染期可能追加 warning（字体回退），先跑完再序列化，保证四件套一致
     if not ns.no_png:
         render_png(layout, out_dir / "preview.png", warnings)
+    dump_json(layout_to_dict(layout, source), out_dir / "layout.json")
+    render_html(layout, source, out_dir / "preview.html")
     render_report(layout, source, out_dir / "report.md")
 
     if not ns.quiet:

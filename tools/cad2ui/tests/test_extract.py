@@ -70,6 +70,8 @@ def test_block_keeps_name_and_attrib_text(tmp_path):
     assert len(blocks) == 2
     assert blocks[0].block == "btn_primary"
     assert "确定" in (blocks[0].text or "")
+    # ATTRIB 有正确的插入点，块的包围盒才不被原点处的属性撑大（比例应保持 120×40）
+    assert blocks[0].rect.w / blocks[0].rect.h == pytest.approx(3.0, abs=0.05)
 
 
 def test_rotated_insert_bbox_is_not_at_origin(tmp_path):

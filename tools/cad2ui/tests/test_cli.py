@@ -95,3 +95,43 @@ def test_default_output_dir(tmp_path, monkeypatch):
     src = make_login_dxf(tmp_path / "login.dxf")
     assert main([str(src)]) == 0
     assert (tmp_path / "out" / "login" / "layout.json").exists()
+
+
+def test_stats_use_documented_keys(tmp_path):
+    """spec 8.1 的 stats 键是 boxes/texts/lines/fills，不是 kind 原值。"""
+    code, out = run_login(tmp_path)
+    stats = json.loads((out / "layout.json").read_text(encoding="utf-8"))["stats"]
+    assert {"boxes", "fills", "total"} <= set(stats)
+    assert stats["boxes"] == 3
+    assert stats["total"] == 4
+
+
+def test_warning_list_is_consistent_across_artifacts(tmp_path, monkeypatch):
+    """渲染期新增的 warning 也要进 JSON/HTML，否则四件套互相矛盾。"""
+    import core.render_png as rp
+
+    monkeypatch.setattr(rp, "FONT_CANDIDATES", ())
+    monkeypatch.setattr(rp, "_font_reported", False)
+    rp._font.cache_clear()
+
+    src = make_login_dxf(tmp_path / "login.dxf")
+    out = tmp_path / "out"
+    assert main([str(src), "-o", str(out)]) == 0
+
+    data = json.loads((out / "layout.json").read_text(encoding="utf-8"))
+    assert any(w["code"] == "FONT_FALLBACK" for w in data["warnings"])
+    assert "FONT_FALLBACK" in (out / "report.md").read_text(encoding="utf-8")
+    assert "warnings 1" in (out / "preview.html").read_text(encoding="utf-8")
+
+
+def test_mapping_value_cannot_inject_html_attributes(tmp_path):
+    from tests.fixtures import make_block_dxf
+
+    src = make_block_dxf(tmp_path / "b.dxf")
+    mapping = tmp_path / "m.json"
+    mapping.write_text(json.dumps({"blocks": {"btn_primary": 'x" onmouseover="alert(1)'}}),
+                       encoding="utf-8")
+    out = tmp_path / "out"
+    assert main([str(src), "-o", str(out), "--map", str(mapping)]) == 0
+    html = (out / "preview.html").read_text(encoding="utf-8")
+    assert '" onmouseover="' not in html

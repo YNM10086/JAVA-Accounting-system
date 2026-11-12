@@ -101,6 +101,14 @@ def test_overlap_warning_emitted(tmp_path):
     assert any(w.code == "OVERLAP" for w in warnings)
 
 
+def test_overlap_message_does_not_claim_a_parent_is_chosen(tmp_path):
+    loaded = load_drawing(make_warning_dxf(tmp_path / "w.dxf"), tmp_path)
+    elements, warnings, _ = extract(loaded)
+    build_tree(elements, warnings)
+    message = [w.message for w in warnings if w.code == "OVERLAP"][0]
+    assert "同级" in message
+
+
 def test_standalone_text_gets_outside_warning(tmp_path):
     loaded = load_drawing(make_warning_dxf(tmp_path / "w.dxf"), tmp_path)
     elements, warnings, _ = extract(loaded)

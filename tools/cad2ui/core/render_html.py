@@ -88,7 +88,8 @@ def _node_html(node: Node) -> str:
     parent = node.parent_id or ""
     inner = _points_svg(node) if node.points else ""
     inner += _label_html(node)
-    return (f'<div class="node" data-cad-node="{node.id}" data-type="{node.type}" '
+    node_type = htmllib.escape(node.type or "")
+    return (f'<div class="node" data-cad-node="{node.id}" data-type="{node_type}" '
             f'data-parent="{parent}" style="{_style_attr(node)}">'
             f'{inner}</div>')
 

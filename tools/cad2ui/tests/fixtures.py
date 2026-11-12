@@ -51,7 +51,8 @@ def make_block_dxf(path: Path) -> Path:
     blk.add_attdef("LABEL", (10, 12), "确定", dxfattribs={"height": 14})
     msp = doc.modelspace()
     ins = msp.add_blockref("btn_primary", (200, 200))
-    ins.add_attrib("LABEL", "确定", dxfattribs={"height": 14})
+    # ATTRIB 的 insert 是 WCS 坐标，必须落在插入点内，否则会把块包围盒撑大
+    ins.add_attrib("LABEL", "确定", (210, 212), dxfattribs={"height": 14})
     msp.add_blockref("btn_primary", (600, 100), dxfattribs={"rotation": -90, "xscale": 2})
     doc.saveas(path)
     return path

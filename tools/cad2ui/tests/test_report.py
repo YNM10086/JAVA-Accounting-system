@@ -31,6 +31,29 @@ def test_report_has_summary_and_table(tmp_path):
     assert "column" in text
 
 
+def test_multiline_label_stays_inside_one_row(tmp_path):
+    """MTEXT 的换行不能把报告表格撑成两行。"""
+    layout = make_layout()
+    layout.nodes[0].label = "第一行\n第二行"
+    out = tmp_path / "r.md"
+    render_report(layout, {"file": "a.dxf", "via": "dxf", "entityCount": 3}, out)
+    rows = [line for line in out.read_text(encoding="utf-8").splitlines()
+            if line.startswith("| n1 |")]
+    assert len(rows) == 1
+    assert "第一行" in rows[0] and "第二行" in rows[0]
+
+
+def test_report_lists_convention_deviations(tmp_path):
+    layout = make_layout()
+    layout.warnings.append(Warning("UNCLOSED_POLYLINE", "9F", "LWPOLYLINE",
+                                   Rect(0, 0, 10, 10), "未闭合"))
+    out = tmp_path / "r.md"
+    render_report(layout, {"file": "a.dxf", "via": "dxf", "entityCount": 3}, out)
+    text = out.read_text(encoding="utf-8")
+    assert "## 与 CONVENTION.md 的偏差" in text
+    assert "控件必须是闭合矩形" in text
+
+
 def test_convention_file_exists_and_covers_layers():
     path = Path(__file__).resolve().parents[1] / "CONVENTION.md"
     text = path.read_text(encoding="utf-8")

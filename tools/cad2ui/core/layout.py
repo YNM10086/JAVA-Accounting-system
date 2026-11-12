@@ -49,7 +49,7 @@ def build_tree(elements: list[Element], warnings: list[Warning]) -> list[Node]:
                 continue
             warnings.append(Warning(
                 "OVERLAP", a.handle, a.entity_type, a.rect,
-                f"框 {a.handle} 与 {b.handle} 部分重叠，按面积大者当父节点",
+                f"框 {a.handle} 与 {b.handle} 部分重叠，两者都保持同级、互不当父节点",
             ))
 
     # 2.5) 没落进任何框的文字 → TEXT_OUTSIDE_BOX
