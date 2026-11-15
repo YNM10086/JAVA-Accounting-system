@@ -48,6 +48,7 @@ if ($LASTEXITCODE -ne 0) { throw '图标生成失败' }
 
 Write-Host '== 1/6 编译 Java ==' -ForegroundColor Cyan
 Remove-Item -Recurse -Force $classes -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $libDst, $staticDst -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $classes, $libDst, $staticDst | Out-Null
 $sources = @(Get-ChildItem (Join-Path $root 'src') -Recurse -Filter *.java | ForEach-Object { $_.FullName })
 & javac -encoding UTF-8 --release 17 -cp "$root\lib\*" -d $classes @sources
@@ -55,6 +56,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Java 编译失败' }
 
 Write-Host '== 2/6 复制依赖与静态资源 ==' -ForegroundColor Cyan
 Copy-Item (Join-Path $root 'lib\*.jar') $libDst -Force
+# 先清空再拷贝：删掉的前端资源不能靠“覆盖”消失
 Copy-Item (Join-Path $root 'static\*') $staticDst -Force -Recurse
 
 Write-Host '== 3/6 打包精简 JRE ==' -ForegroundColor Cyan
