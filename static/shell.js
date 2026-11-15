@@ -124,7 +124,7 @@
       prev.innerHTML = "";
       const hd = document.createElement("div");
       hd.className = "hd";
-      ["商品 / ITEM", "金额", "性质", "日期", ""].forEach((t) => {
+      ["商品 / ITEM", "金额", "性质", "类别", "日期", ""].forEach((t) => {
         const s = document.createElement("span");
         s.textContent = t;
         hd.appendChild(s);
@@ -150,6 +150,17 @@
         });
         t.value = String(it.type === 2 ? 2 : 1);
 
+        const c = document.createElement("select");
+        c.className = "c";
+        (window.CAT_LIST || ["其他"]).forEach((n) => {
+          const o = document.createElement("option");
+          o.value = n; o.textContent = n;
+          c.appendChild(o);
+        });
+        c.value = it.cat || "其他";
+        // 换类别时把性质拉到该类的默认值（餐饮=日常，其余=特殊），仍可手动改
+        c.addEventListener("change", () => { t.value = c.value === "餐饮" ? "1" : "2"; });
+
         const d = document.createElement("input");
         d.className = "d"; d.type = "number"; d.min = "1"; d.max = "31"; d.value = it.day;
 
@@ -157,7 +168,7 @@
         del.className = "del"; del.type = "button"; del.title = "删除这条"; del.textContent = "×";
         del.onclick = () => row.remove();
 
-        row.append(g, p, t, d, del);
+        row.append(g, p, t, c, d, del);
         prev.appendChild(row);
       });
 
@@ -179,11 +190,12 @@
         const goods = row.querySelector(".g").value.trim();
         const price = parseFloat(row.querySelector(".p").value);
         const type = parseInt(row.querySelector(".t").value, 10) === 2 ? 2 : 1;
+        const cat = row.querySelector(".c").value;
         let day = parseInt(row.querySelector(".d").value, 10);
         if (!goods || !(price > 0)) return;
         if (!day || day < 1) day = new Date().getDate();
         if (day > 31) day = 31;
-        out.push({ goods, price: Math.round(price * 100) / 100, type, day });
+        out.push({ goods, price: Math.round(price * 100) / 100, type, cat, day });
       });
       return out;
     }
@@ -240,6 +252,18 @@
       }).catch(() => { busy = false; setStatus("请求失败，检查服务是否在运行", true); });
     }
 
+    function doReclass() {
+      if (busy) return;
+      if (!confirm("让 AI 重新分类本月全部记录？会覆盖现有分类。")) return;
+      busy = true; setStatus("AI 正在重新分类本月…（按批处理，可能要几十秒）");
+      orb.classList.add("say");
+      post("/ai/classify", {}).then((j) => {
+        busy = false; orb.classList.remove("say");
+        if (!j.ok) { setStatus(j.error || "分类失败", true); return; }
+        setStatus(j.changed > 0 ? "已更新 " + j.changed + " 条分类" : "没有需要改的，分类已经是最新");
+      }).catch(() => { busy = false; orb.classList.remove("say"); setStatus("请求失败，检查服务是否在运行", true); });
+    }
+
     function doAdvice() {
       if (busy) return;
       busy = true; setStatus("正在生成建议…");
@@ -253,9 +277,10 @@
 
     orb.addEventListener("click", () => (open ? closePanel() : (openPanel(true), touch())));
     if (bubble) bubble.addEventListener("click", () => { hideBubble(); openPanel(true); });
-    const parseBtn = $("aiParse"), adviseBtn = $("aiAdvise");
+    const parseBtn = $("aiParse"), adviseBtn = $("aiAdvise"), reclassBtn = $("aiReclass");
     if (parseBtn) parseBtn.addEventListener("click", doParse);
     if (adviseBtn) adviseBtn.addEventListener("click", doAdvice);
+    if (reclassBtn) reclassBtn.addEventListener("click", doReclass);
 
     if (ta) {
       ta.addEventListener("keydown", (e) => {

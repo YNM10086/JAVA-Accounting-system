@@ -35,6 +35,7 @@ public class AiAssistant {
         public String goods;
         public double price;
         public int type;   // 1=日常 2=特殊
+        public String cat; // 细类，见 Cat.ALL
         public int day;
     }
 
@@ -107,11 +108,12 @@ public class AiAssistant {
             "你是一个记账解析器。把用户的一句话拆成若干条消费记录。\n" +
             "今天是 " + today.getYear() + " 年 " + month + " 月 " + day + " 日，本月共 " + days + " 天。\n" +
             "只输出 JSON，不要解释，格式：\n" +
-            "{\"items\":[{\"goods\":\"商品名，20字以内\",\"price\":数字,\"type\":1,\"day\":数字}]}\n" +
+            "{\"items\":[{\"goods\":\"商品名，20字以内\",\"price\":数字,\"type\":1,\"cat\":\"类别\",\"day\":数字}]}\n" +
             "规则：\n" +
             "- 先判断是否餐饮：早餐/午餐/晚餐/夜宵/饮料（可乐、奶茶、咖啡、果汁、水等）/零食/水果/外卖 → type=1（日常消费）\n" +
             "- 不属于餐饮的一律 type=2（特殊消费），例如交通、日用品、话费、房租、数码、旅游、娱乐、医美、大件等\n" +
             "- 示例：午餐25→type=1，可乐3→type=1，奶茶12→type=1，打车30→type=2，买键盘399→type=2\n" +
+            "- cat 只能从这些里选一个：" + Cat.LIST + "；拿不准就选\"其他\"，不要自创类别\n" +
             "- day 是 1-" + days + " 的日期；说\"今天\"填 " + day + "，说\"昨天\"填 " + yesterday + "，没提日期就填 " + day + "\n" +
             "- 金额必须为正数；一句话里有多笔就拆成多条\n" +
             "- goods 用简短中文概括，例如\"牛肉面\"\"打车\"\"奶茶\"\n" +
@@ -134,6 +136,10 @@ public class AiAssistant {
             int type = Json.i(m.get("type"), 2);
             if (type != 2) type = 1;
 
+            String cat = Cat.clean(Json.str(m.get("cat")), goods);
+            // 性质与项目口径一致：餐饮归日常，其余一律特殊（模型这条经常给错，代码兜住）
+            if (!"餐饮".equals(cat)) type = 2;
+
             int d = Json.i(m.get("day"), day);
             if (d < 1) d = 1;
             if (d > days) d = days;
@@ -142,6 +148,7 @@ public class AiAssistant {
             it.goods = goods;
             it.price = Math.round(price * 100) / 100.0;
             it.type = type;
+            it.cat = cat;
             it.day = d;
             items.add(it);
         }
@@ -157,6 +164,7 @@ public class AiAssistant {
             b.append("{\"goods\":\"").append(Json.esc(it.goods)).append("\"")
              .append(",\"price\":").append(it.price)
              .append(",\"type\":").append(it.type)
+             .append(",\"cat\":\"").append(Json.esc(it.cat == null ? Cat.guess(it.goods) : it.cat)).append("\"")
              .append(",\"day\":").append(it.day).append('}');
         }
         b.append("]}");
@@ -182,7 +190,7 @@ public class AiAssistant {
                 ps.setString(2, it.goods);
                 ps.setDouble(3, it.price);
                 ps.setInt(4, it.type);
-                ps.setString(5, Cat.clean(null, it.goods));
+                ps.setString(5, it.cat == null || it.cat.isEmpty() ? Cat.clean(null, it.goods) : it.cat);
                 ps.executeUpdate();
                 n++;
             }
@@ -191,6 +199,80 @@ public class AiAssistant {
             try { conn.close(); } catch (Exception ignored) {}
         }
         return n;
+    }
+
+
+    // ==================== 批量重新分类 ====================
+
+    /**
+     * 把某月记录按 40 条一批喂给模型重新分类，写回 cat。
+     * 只覆盖模型给出且在白名单里的值；离线/解析失败时抛异常，由上层提示。
+     * 返回实际改动的行数。
+     */
+    public static int reclassify(int month) throws Exception {
+        if (month < 1 || month > 12) month = Date_time.getMonth();
+        String table = String.format("table_%02d", month);
+
+        Connection conn = One.getConn();
+        if (conn == null) throw new IOException("数据库连接失败");
+        int changed = 0;
+        try {
+            WebServer.ensureCatColumn(conn);
+
+            List<Object[]> rows = new ArrayList<>();
+            try (Statement st = conn.createStatement();
+                 ResultSet rs = st.executeQuery(
+                     "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date")) {
+                while (rs.next()) {
+                    rows.add(new Object[]{ rs.getInt(1), rs.getString(2), rs.getDouble(3), rs.getInt(4), rs.getString(5) });
+                }
+            }
+            if (rows.isEmpty()) return 0;
+
+            String sys = "你是个人记账的分类器。给每一条消费从下面的清单里选且只选一个类别：\n" +
+                Cat.LIST + "\n" +
+                "规则：餐饮=吃饭喝饮料；交通=地铁公交打车加油停车；居住=房租水电燃气宽带物业话费；" +
+                "娱乐=电影游戏演出旅游会员；购物=衣物数码日用；教育=课程书籍考试；" +
+                "AI API=模型/接口/token 订阅；医疗=看病买药体检；人情=红包礼物请客随礼；其余归其他。\n" +
+                "只输出 JSON，不要解释：{\"items\":[{\"i\":序号,\"cat\":\"类别\"}]}";
+
+            PreparedStatement ps = conn.prepareStatement(
+                "UPDATE " + table + " SET cat=? WHERE date=? AND goods=? AND price=? AND num_1=?");
+
+            for (int from = 0; from < rows.size(); from += 40) {
+                int to = Math.min(from + 40, rows.size());
+                StringBuilder payload = new StringBuilder("[");
+                for (int i = from; i < to; i++) {
+                    Object[] r = rows.get(i);
+                    if (i > from) payload.append(',');
+                    payload.append("{\"i\":").append(i - from)
+                           .append(",\"goods\":\"").append(Json.esc((String) r[1])).append("\"}");
+                }
+                payload.append(']');
+
+                Map<String, Object> root = Json.map(Json.parse(extractJson(chat(sys, payload.toString()))));
+                for (Object o : Json.list(root.get("items"))) {
+                    Map<String, Object> m = Json.map(o);
+                    int idx = Json.i(m.get("i"), -1);
+                    if (idx < 0 || from + idx >= to) continue;
+                    String cat = Cat.clean(Json.str(m.get("cat")), (String) rows.get(from + idx)[1]);
+                    Object[] r = rows.get(from + idx);
+                    if (cat.equals(r[4])) continue;
+                    ps.setString(1, cat);
+                    ps.setInt(2, (Integer) r[0]);
+                    ps.setString(3, (String) r[1]);
+                    ps.setDouble(4, (Double) r[2]);
+                    ps.setInt(5, (Integer) r[3]);
+                    ps.executeUpdate();
+                    r[4] = cat;
+                    changed++;
+                }
+            }
+            ps.close();
+        } finally {
+            try { conn.close(); } catch (Exception ignored) {}
+        }
+        return changed;
     }
 
     // ==================== 建议 ====================

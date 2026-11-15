@@ -81,6 +81,7 @@ public class WebServer {
                 case "/ai/parse"     -> { if ("POST".equals(method)) handleAiParse(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 case "/ai/save"      -> { if ("POST".equals(method)) handleAiSave(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 case "/ai/advice"    -> { if ("POST".equals(method)) handleAiAdvice(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
+                case "/ai/classify"  -> { if ("POST".equals(method)) handleAiClassify(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 default              -> {
                     if (path.startsWith("/static/")) serveStatic(ex, path);
                     else redirect(ex, "/main");
@@ -243,6 +244,19 @@ public class WebServer {
         }
     }
 
+    /** 让 AI 按批重新分类某月（默认本月）。失败时返回 ok:false，页面上给提示。 */
+    private static void handleAiClassify(HttpExchange ex) throws IOException {
+        try {
+            String raw = readBody(ex);
+            Map<String, Object> body = Json.map(Json.parse(raw == null || raw.isEmpty() ? "{}" : raw));
+            int month = Json.i(body.get("month"), Date_time.getMonth());
+            int changed = AiAssistant.reclassify(month);
+            json(ex, "{\"ok\":true,\"changed\":" + changed + "}");
+        } catch (Exception e) {
+            json(ex, "{\"ok\":false,\"error\":\"" + Json.esc(errMsg(e)) + "\"}");
+        }
+    }
+
     private static void handleAiAdvice(HttpExchange ex) throws IOException {
         try {
             json(ex, "{\"ok\":true,\"advice\":\"" + Json.esc(AiAssistant.advice()) + "\"}");
@@ -282,6 +296,16 @@ public class WebServer {
             st.close();
         } catch (Exception e) { /* 表已存在则忽略 */ }
         ensureCatColumn(conn);
+    }
+
+    /** Cat.ALL 的 JS 数组字面量，前端下拉与后端白名单同源 */
+    private static String catJs() {
+        StringBuilder b = new StringBuilder("[");
+        for (int i = 0; i < Cat.ALL.length; i++) {
+            if (i > 0) b.append(',');
+            b.append('"').append(Cat.ALL[i]).append('"');
+        }
+        return b.append(']').toString();
     }
 
     /** 分类下拉选项（与 Cat.ALL 同源） */
@@ -1209,6 +1233,7 @@ public class WebServer {
             shellStatus() +
             "</div>" +
             shellAi() +
+            "<script>window.CAT_LIST=" + catJs() + ";</script>" +
             "<script src='/static/ascii-ocean.js'></script>" +
             "<script src='/static/shell.js'></script>" +
             "</body></html>";
@@ -1279,6 +1304,7 @@ public class WebServer {
     private static String shellAi() {
         return "<section class='panel aiPanel' id='aiPanel' aria-hidden='true'>" +
             "<header class='ph'><span class='label'>AI / 记一笔</span>" +
+            "<span class='act' role='button' tabindex='0' id='aiReclass' title='让 AI 按批重新分类本月'>重分本月</span>" +
             "<span class='st'><i></i><span id='aiModel'>AI · 就绪</span></span></header>" +
             "<div class='aiBody'>" +
             "<textarea class='aiInput' id='aiInput' rows='3' placeholder='说一句就行，例如：中午牛肉面 28，晚上打车 35'></textarea>" +

@@ -340,7 +340,9 @@
   .aiRow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px}
   .aiHint{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--faint)}
   .aiRowBtns{display:flex;align-items:center;gap:8px}
-  .aiRowBtns .btn{height:26px;padding:0 11px;font-size:10px}
+  .aiRowBtns .btn{height:26px;padding:0 11px;font-size:10px;white-space:nowrap}
+  .aiRowBtns{flex:0 0 auto}
+  .aiHint{white-space:nowrap}
 
   .aiStat{min-height:14px;margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--faint)}
   .aiStat.busy{color:var(--accent)}
@@ -349,7 +351,7 @@
   .aiStat.err{color:var(--expense)}
 
   .aiPrev{margin-top:6px}
-  .aiPrev .hd,.aiPrev .rw{display:grid;grid-template-columns:1fr 74px 58px 40px 16px;gap:6px;align-items:center}
+  .aiPrev .hd,.aiPrev .rw{display:grid;grid-template-columns:1fr 62px 50px 58px 34px 12px;gap:5px;align-items:center}
   .aiPrev .hd{
     padding:7px 0 5px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--faint);
     border-bottom:1px solid var(--line);
@@ -361,6 +363,9 @@
   }
   .aiPrev input:hover,.aiPrev select:hover{border-color:var(--line);background:rgba(255,255,255,.02)}
   .aiPrev input:focus,.aiPrev select:focus{border-color:rgba(255,138,30,.5)}
+  .aiPrev input[type=number]{-moz-appearance:textfield;appearance:textfield}
+  .aiPrev input[type=number]::-webkit-outer-spin-button,
+  .aiPrev input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .aiPrev .p{font-family:var(--mono);text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
   .aiPrev select{
     appearance:none;-webkit-appearance:none;font-family:var(--mono);font-size:10.5px;
