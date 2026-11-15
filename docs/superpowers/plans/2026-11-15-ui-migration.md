@@ -37,9 +37,9 @@
 - Create: `static/app.css`
 - Read: `design_tmp/prototype/app.html`
 
-- [ ] 把 `app.html` 里 `<style>` 的变量、顶栏、左栏、状态栏、`.panel`、`.kpi`、表格、按钮、AI 小球/面板/气泡整段搬到 `static/app.css`，去掉原型专用的调试类（`.nofx`、定格相关）。
-- [ ] 只保留一套变量（`--accent --income --expense --ink --dim --faint --line --panel`），不保留原型里写死的一次性数值。
-- [ ] `:root` 之外不出现魔法色值。
+- [x] 把 `app.html` 里 `<style>` 的变量、顶栏、左栏、状态栏、`.panel`、`.kpi`、表格、按钮、AI 小球/面板/气泡整段搬到 `static/app.css`，去掉原型专用的调试类（`.nofx`、定格相关）。
+- [x] 只保留一套变量（`--accent --income --expense --ink --dim --faint --line --panel`），不保留原型里写死的一次性数值。
+- [x] `:root` 之外不出现魔法色值。
 
 **验收:** 新开一个空白 HTML 引用 `app.css`，手写顶栏 + 左栏 + 一个 `.panel`，1440×900 下与原型像素级接近（叠图 diff 允许 ≤2px 的字体差异）。
 
@@ -51,11 +51,11 @@
 - Create: `static/shell.js`
 - Read: `design_tmp/prototype/app.html`（进场时间轴、AI 小球）、`static/ai-widget.js`（真实 `/ai/*` 流程）
 
-- [ ] `Shell.mount({nav, title, crumb})`：渲染顶栏（品牌 / 面包屑 / AI 小球 / 时钟 / 窗口按钮占位）、左栏 7 项导航（当前项高亮由 `nav` 决定）、状态栏。
-- [ ] 进场两拍照搬原型：0~.6s 骨架通电（顶栏/左栏 1px 橙光扫过 + 导航错峰），.6s 起内容 `rise`。
-- [ ] 挂 `ascii-ocean.js`（默认开，`?nbg=1` 关）。
-- [ ] AI 小球：造型照搬原型；面板/气泡的**交互与接口**照搬 `ai-widget.js`（`/ai/parse`、`/ai/save`、`/ai/advice`、`/ai/status`），面板位置 `top:56 right:356`、气泡 `top:8 right:302`。
-- [ ] `prefers-reduced-motion` 与 `?nofx=1` 关闭动效，但骨架保持可见（`::after` 基态 `opacity:0`）。
+- [x] `Shell.mount({nav, title, crumb})`：渲染顶栏（品牌 / 面包屑 / AI 小球 / 时钟 / 窗口按钮占位）、左栏 7 项导航（当前项高亮由 `nav` 决定）、状态栏。
+- [x] 进场两拍照搬原型：0~.6s 骨架通电（顶栏/左栏 1px 橙光扫过 + 导航错峰），.6s 起内容 `rise`。
+- [x] 挂 `ascii-ocean.js`（默认开，`?nbg=1` 关）。
+- [x] AI 小球：造型照搬原型；面板/气泡的**交互与接口**照搬 `ai-widget.js`（`/ai/parse`、`/ai/save`、`/ai/advice`、`/ai/status`），面板位置 `top:56 right:356`、气泡 `top:8 right:302`。
+- [x] `prefers-reduced-motion` 与 `?nofx=1` 关闭动效，但骨架保持可见（`::after` 基态 `opacity:0`）。
 
 **验收:** 静态页里调 `Shell.mount()` 能出完整骨架；点小球 → 输入 → 解析 → 入库走真接口成功（需 MySQL）；无 console error。
 
@@ -66,10 +66,10 @@
 **Files:**
 - Modify: `src/function/WebServer.java`（`page()` / `pageRaw()` / 新增 `shell(String title, String nav, String body)`、`mainPage()`）
 
-- [ ] 新增 `shell()`：输出 `<!DOCTYPE html>` + `<link app.css>` + `<script shell.js>` + `Shell.mount()` + body 容器。
-- [ ] `/` 与 `/splash-done` 路由保持原语义（先开屏，再 `/main`）。
-- [ ] `/main` 改成**总览的占位**（先接新壳，内容仍是旧主菜单的 4 个入口，作为“功能还在”的证明）。
-- [ ] 旧 `page()` 保留但不再被新页面调用；`pageRaw()` 暂时共存。
+- [x] 新增 `shell()`：输出 `<!DOCTYPE html>` + `<link app.css>` + `<script shell.js>` + `Shell.mount()` + body 容器。
+- [x] `/` 与 `/splash-done` 路由保持原语义（先开屏，再 `/main`）。
+- [x] `/main` 改成**总览的占位**（先接新壳，内容仍是旧主菜单的 4 个入口，作为“功能还在”的证明）。
+- [x] 旧 `page()` 保留但不再被新页面调用；`pageRaw()` 暂时共存。
 
 **验收:** 起真服务器，`/` → 开屏 → `/main` 显示新壳 + 旧四入口，四项都能点进旧页面且功能正常。
 
@@ -81,10 +81,10 @@
 - Modify: `src/function/WebServer.java`（`ensureSchema()`、`handleSavePost`、`handleAiSave`）
 - Create: `tools/migrate-cat/` （一个可重复执行的小工具，Java 或 SQL 脚本二选一）
 
-- [ ] `ensureSchema()`：对 `table_01~12` 逐个查 `information_schema.columns`，缺 `cat` 就 `ALTER TABLE ... ADD COLUMN cat VARCHAR(16) NOT NULL DEFAULT '其他'`（幂等，跑两次不变）。
-- [ ] 关键词规则与原型一致：饭/面/餐/奶茶/咖啡/外卖 → 餐饮；电影/游戏/演出/门票/旅游 → 娱乐；课/网课/书/教程/考试 → 教育；api/claude/gpt/openai/token → AI API；买/京东/淘宝/超市/键盘 → 购物；其余 → 其他。
-- [ ] 回填老数据：按同一套规则更新 `cat`，并保证 `num_1` 与性质规则一致（餐饮→日常，其余→特殊；已有 `num_1` 不覆盖）。
-- [ ] `/save` 表单加分类下拉（6 项），提交写入 `cat`；`/ai/save` 把解析出的分类写进 `cat`。
+- [x] `ensureSchema()`：对 `table_01~12` 逐个查 `information_schema.columns`，缺 `cat` 就 `ALTER TABLE ... ADD COLUMN cat VARCHAR(16) NOT NULL DEFAULT '其他'`（幂等，跑两次不变）。
+- [x] 关键词规则与原型一致：饭/面/餐/奶茶/咖啡/外卖 → 餐饮；电影/游戏/演出/门票/旅游 → 娱乐；课/网课/书/教程/考试 → 教育；api/claude/gpt/openai/token → AI API；买/京东/淘宝/超市/键盘 → 购物；其余 → 其他。
+- [x] 回填老数据：按同一套规则更新 `cat`，并保证 `num_1` 与性质规则一致（餐饮→日常，其余→特殊；已有 `num_1` 不覆盖）。
+- [x] `/save` 表单加分类下拉（6 项），提交写入 `cat`；`/ai/save` 把解析出的分类写进 `cat`。
 
 **验收:** 回填后 `SELECT cat, SUM(price) FROM table_11 GROUP BY cat` 合计 = 该月总支出；`/save` 提交一条带分类的记录，`/query` 能看到。
 
