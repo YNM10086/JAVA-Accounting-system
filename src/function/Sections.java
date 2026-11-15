@@ -210,6 +210,18 @@ public final class Sections {
         return sb.toString();
     }
 
+    /* ---------------- 导出 ---------------- */
+    public static String export(Overview ov) {
+        return "<section class='sec' id='export'>" +
+            head("07", "导出", "EXPORT / 交给 Excel", "") +
+            "<div class='panel pad'>" +
+            "<div class='exportRow'>" +
+            "<a class='btn solid' href='/export'>导出本月明细 .xlsx</a>" +
+            "<a class='btn' href='/export?all=1'>导出全年 12 个月 .xlsx</a>" +
+            "<span class='hint'>列：日期 / 分类 / 性质 / 商品 / 金额；每月一个工作表，末尾带合计。</span>" +
+            "</div></div></section>";
+    }
+
     /* ---------------- 设置 ---------------- */
     public static String settings(Overview ov) {
         StringBuilder cats = new StringBuilder();
@@ -221,6 +233,8 @@ public final class Sections {
             "<dt>分类清单</dt><dd class='pills'>" + cats + "</dd>" +
             "<dt>数据库</dt><dd>MySQL · Cost_system · 当月表 " + String.format("table_%02d", ov.month) + "</dd>" +
             "<dt>AI 引擎</dt><dd id='settingsAi'>读取中…</dd>" +
+            "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
+            "<dt>版本</dt><dd>v3.0.0 · 单页结构</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }

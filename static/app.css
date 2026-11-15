@@ -109,7 +109,7 @@
   .stat .dot.warn::before{background:var(--accent)}
 
   /* ---- 视图 ---- */
-  .view{overflow:auto;padding:22px 28px 24px;min-height:0}
+  .view{overflow:auto;padding:22px 28px 40px;min-height:0;scroll-behavior:smooth}
   /* 超宽屏（>1800）时内容不再无脑拉伸，居中留出背景 */
   .view > *{max-width:1560px;width:100%;margin-left:auto;margin-right:auto}
   .view::-webkit-scrollbar{width:8px}
@@ -536,3 +536,7 @@ thead th{white-space:nowrap}
 .budgetForm .fldBtn{grid-column:auto;justify-content:flex-start}
 .budgetForm .fldBtn .btn{width:168px;min-width:0}
 .formGrid3{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* 导出段的按钮排 */
+.exportRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.exportRow .hint{margin:0}

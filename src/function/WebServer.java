@@ -429,59 +429,85 @@ public class WebServer {
     // ==================== Excel 导出 ====================
 
     private static void handleExportData(HttpExchange ex) throws Exception {
+        Map<String, String> q = parseQuery(ex.getRequestURI().getQuery());
+        boolean all = "1".equals(q.get("all"));
         int month = Date_time.getMonth();
-        String q = ex.getRequestURI().getQuery();
-        if (q != null) {
-            try { month = Integer.parseInt(parseQuery(q).get("month")); } catch (Exception ignored) {}
-        }
-        String table = String.format("table_%02d", month);
+        try { if (q.get("month") != null) month = Integer.parseInt(q.get("month")); } catch (Exception ignore) {}
+        if (month < 1 || month > 12) month = Date_time.getMonth();
 
         Connection conn = One.getConn();
-        if (conn == null) { try { html(ex, errorPage("数据库连接失败")); } catch (Exception ignored) {} return; }
-
-        try {
-            StringBuilder json = new StringBuilder();
-            json.append("{\"month\":").append(month).append(",\"daily\":[");
-
-            PreparedStatement ps = One.getPreparedStmt(conn,
-                "SELECT date, goods, price FROM " + table + " WHERE num_1=1 ORDER BY date");
-            ResultSet rs = ps.executeQuery();
-            boolean first = true;
-            while (rs.next()) {
-                if (!first) json.append(",");
-                json.append("{\"d\":").append(rs.getInt("date"))
-                    .append(",\"g\":\"").append(escJson(rs.getString("goods")))
-                    .append("\",\"p\":").append(rs.getDouble("price")).append("}");
-                first = false;
+        if (conn == null) { html(ex, errorPage("数据库连接失败")); return; }
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+            if (all) {
+                for (int m = 1; m <= 12; m++) addSheet(wb, conn, m, false);
+            } else {
+                addSheet(wb, conn, month, true);
             }
-            rs.close();
-
-            json.append("],\"special\":[");
-            ps = One.getPreparedStmt(conn,
-                "SELECT date, goods, price FROM " + table + " WHERE num_1=2 ORDER BY date");
-            rs = ps.executeQuery();
-            first = true;
-            while (rs.next()) {
-                if (!first) json.append(",");
-                json.append("{\"d\":").append(rs.getInt("date"))
-                    .append(",\"g\":\"").append(escJson(rs.getString("goods")))
-                    .append("\",\"p\":").append(rs.getDouble("price")).append("}");
-                first = false;
+            if (wb.getNumberOfSheets() == 0) {
+                org.apache.poi.ss.usermodel.Sheet s0 = wb.createSheet("空");
+                s0.createRow(0).createCell(0).setCellValue("这个月还没有记录");
             }
-            rs.close(); ps.close(); conn.close();
-            json.append("]}");
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            wb.write(bos);
+            byte[] bytes = bos.toByteArray();
 
-            byte[] bytes = json.toString().getBytes("UTF-8");
-            ex.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+            String name = "鲨鱼账本-" + (all ? Date_time.getYear() + "年" : Date_time.getYear() + "-" + String.format("%02d", month)) + ".xlsx";
+            ex.getResponseHeaders().set("Content-Type",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            ex.getResponseHeaders().set("Content-Disposition",
+                "attachment; filename=\"bookkeeping.xlsx\"; filename*=UTF-8''" +
+                java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20"));
             ex.sendResponseHeaders(200, bytes.length);
             try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
-        } catch (Exception e) {
+        } finally {
             try { conn.close(); } catch (Exception ignored) {}
-            throw e;
         }
     }
 
-    // ==================== 日消费明细 ====================
+    /** 把某个月的记录写成一个 sheet（all=true 时即使为空也建，当月导出为空则跳过） */
+    private static void addSheet(org.apache.poi.xssf.usermodel.XSSFWorkbook wb, Connection conn, int month, boolean forceEmpty) throws Exception {
+        String table = String.format("table_%02d", month);
+        java.util.List<Object[]> rows = new java.util.ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT date, cat, num_1, goods, price FROM " + table + " ORDER BY date")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(new Object[]{ rs.getInt(1), rs.getString(2) == null ? "其他" : rs.getString(2),
+                            rs.getInt(3) == 1 ? "日常" : "特殊", rs.getString(4), rs.getDouble(5) });
+                }
+            }
+        } catch (Exception e) { return; }        // 该月表不存在
+        if (rows.isEmpty() && !forceEmpty) return;
+
+        org.apache.poi.ss.usermodel.Sheet sheet = wb.createSheet(String.format("%02d 月", month));
+        String[] headers = { "日期（日）", "分类", "性质", "商品", "金额（元）" };
+        org.apache.poi.ss.usermodel.CellStyle headStyle = wb.createCellStyle();
+        org.apache.poi.ss.usermodel.Font bold = wb.createFont();
+        bold.setBold(true);
+        headStyle.setFont(bold);
+
+        org.apache.poi.ss.usermodel.Row h = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            org.apache.poi.ss.usermodel.Cell c = h.createCell(i);
+            c.setCellValue(headers[i]);
+            c.setCellStyle(headStyle);
+        }
+        double sum = 0;
+        for (int r = 0; r < rows.size(); r++) {
+            Object[] v = rows.get(r);
+            org.apache.poi.ss.usermodel.Row row = sheet.createRow(r + 1);
+            row.createCell(0).setCellValue((Integer) v[0]);
+            row.createCell(1).setCellValue((String) v[1]);
+            row.createCell(2).setCellValue((String) v[2]);
+            row.createCell(3).setCellValue((String) v[3]);
+            row.createCell(4).setCellValue((Double) v[4]);
+            sum += (Double) v[4];
+        }
+        org.apache.poi.ss.usermodel.Row total = sheet.createRow(rows.size() + 1);
+        total.createCell(3).setCellValue("合计");
+        total.createCell(4).setCellValue(Math.round(sum * 100) / 100.0);
+        for (int i = 0; i < headers.length; i++) sheet.autoSizeColumn(i);
+    }
 
     private static void handleDetailPost(HttpExchange ex) throws Exception {
         Map<String, String> f = parseForm(ex);
@@ -723,6 +749,7 @@ public class WebServer {
         sb.append(Sections.details(ov));
         sb.append(Sections.budget(ov));
         sb.append(Sections.settings(ov));
+        sb.append(Sections.export(ov));
         sb.append("<script>window.OV=").append(ov.json()).append(";</script>");
         sb.append(flash);
         return shell("总览", "overview", sb.toString());
@@ -766,7 +793,7 @@ public class WebServer {
         {"details",  "04", "明细", "DETAILS", "#details", ""},
         {"budget",   "05", "预算", "BUDGET", "#budget", ""},
         {"settings", "06", "设置", "SETTINGS", "#settings", ""},
-        {"export",   "07", "导出", "EXPORT", "/export", ""},
+        {"export",   "07", "导出", "EXPORT", "#export", ""},
     };
 
     /**
