@@ -111,7 +111,9 @@ public class Overview {
             if (d > 1) b.append(',');
             b.append(Math.round(perDay[d] * 100) / 100.0);
         }
-        b.append("],\"cats\":[");
+        b.append("],\"today\":").append(Date_time.getDay())
+         .append(",\"daysInMonth\":").append(days)
+         .append(",\"cats\":[");
         boolean first = true;
         for (Map.Entry<String, Double> e : cats.entrySet()) {
             if (e.getValue() <= 0) continue;

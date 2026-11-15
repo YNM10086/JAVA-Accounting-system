@@ -918,7 +918,7 @@ public class WebServer {
 
         // ---- KPI ----
         sb.append("<div class='kpis'>");
-        double dayAvg = ov.expense / Math.max(1, ov.days);
+        double dayAvg = ov.expense / Math.max(1, Date_time.getDay());
         sb.append(kpiCard("收", "本月收入 / INCOME", ov.income, "",
                 ov.income > 0 ? "本月累计" : "本月还没有收入记录", false));
 
@@ -948,7 +948,7 @@ public class WebServer {
 
         // ---- 图表 ----
         sb.append("<div class='row2'>");
-        sb.append("<section class='panel'><header class='ph'><span class='label'>30 天支出 / SPEND</span>")
+        sb.append("<section class='panel'><header class='ph'><span class='label'>本月每日支出 / DAILY</span>")
           .append("<span class='act' id='flowMeta'>日均 — · 峰值 —</span></header>")
           .append("<div class='chartBox'><svg id='flow' viewBox='0 0 1000 190' role='img' aria-label='30 天每日支出柱状图'></svg>")
           .append("<div class='legend'><span><i style='background:var(--accent);height:7px'></i>每日支出 DAILY</span>")
