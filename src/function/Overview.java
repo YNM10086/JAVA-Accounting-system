@@ -26,6 +26,7 @@ public class Overview {
     public double[] perDayPrev = new double[32];
     public LinkedHashMap<String, Double> cats = new LinkedHashMap<>(); // 按金额降序
     public List<Row> recent = new ArrayList<>();
+    public List<Row> all = new ArrayList<>();      // 当月全部记录，前端筛选用
 
     public static class Row {
         public int date, num1;
@@ -33,10 +34,12 @@ public class Overview {
         public double price;
     }
 
-    public static Overview load() {
+    public static Overview load() { return load(Date_time.getMonth()); }
+
+    public static Overview load(int month) {
         Overview o = new Overview();
-        o.month = Date_time.getMonth();
-        o.days = Date_time.getMonthDays();
+        o.month = (month >= 1 && month <= 12) ? month : Date_time.getMonth();
+        o.days = java.time.LocalDate.of(Date_time.getYear(), o.month, 1).lengthOfMonth();
         String table = String.format("table_%02d", o.month);
         String prevTable = String.format("table_%02d", o.month == 1 ? 12 : o.month - 1);
 
@@ -68,7 +71,7 @@ public class Overview {
                     while (rs.next()) o.cats.put(rs.getString(1) == null ? "其他" : rs.getString(1), rs.getDouble(2));
                 }
                 try (ResultSet rs = st.executeQuery(
-                        "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC LIMIT 6")) {
+                        "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC LIMIT 500")) {
                     while (rs.next()) {
                         Row r = new Row();
                         r.date = rs.getInt(1);
@@ -76,7 +79,8 @@ public class Overview {
                         r.price = rs.getDouble(3);
                         r.num1 = rs.getInt(4);
                         r.cat = rs.getString(5) == null ? "其他" : rs.getString(5);
-                        o.recent.add(r);
+                        o.all.add(r);
+                        if (o.recent.size() < 6) o.recent.add(r);
                     }
                 }
             }
@@ -113,6 +117,56 @@ public class Overview {
         return 0;
     }
 
+    /** 换月联动用：只要结构图和表需要的那几项 */
+    public String monthJson() {
+        return "{\"month\":" + month
+            + ",\"expense\":" + Math.round(expense * 100) / 100.0
+            + ",\"count\":" + count
+            + ",\"cats\":[" + catsJson() + "]"
+            + ",\"types\":[{\"n\":\"日常\",\"v\":" + Math.round(daily * 100) / 100.0
+            + "},{\"n\":\"特殊\",\"v\":" + Math.round(special * 100) / 100.0 + "}]"
+            + ",\"rows\":" + rowsJson()
+            + ",\"daily\":[" + dailyJson() + "]"
+            + ",\"today\":" + (all.isEmpty() ? 1 : all.get(0).date)
+            + ",\"days\":" + days + "}";
+    }
+
+    private String dailyJson() {
+        StringBuilder b = new StringBuilder();
+        for (int d = 1; d <= days; d++) {
+            if (d > 1) b.append(',');
+            b.append(Math.round(perDay[d] * 100) / 100.0);
+        }
+        return b.toString();
+    }
+
+    private String rowsJson() {
+        StringBuilder b = new StringBuilder("[");
+        for (int i = 0; i < all.size(); i++) {
+            Row r = all.get(i);
+            if (i > 0) b.append(',');
+            b.append("{\"d\":").append(r.date)
+             .append(",\"g\":\"").append(Json.esc(r.goods)).append("\"")
+             .append(",\"p\":").append(r.price)
+             .append(",\"n\":").append(r.num1)
+             .append(",\"c\":\"").append(Json.esc(r.cat)).append("\"}");
+        }
+        return b.append(']').toString();
+    }
+
+    private String catsJson() {
+        StringBuilder b = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, Double> e : cats.entrySet()) {
+            if (e.getValue() <= 0) continue;
+            if (!first) b.append(',');
+            first = false;
+            b.append("{\"n\":\"").append(Json.esc(e.getKey())).append("\",\"v\":")
+             .append(Math.round(e.getValue() * 100) / 100.0).append('}');
+        }
+        return b.toString();
+    }
+
     /** 供前端画图：{daily:[...], cats:[{n,v}], types:[{n,v}], budget, expense, income} */
     public String json() {
         StringBuilder b = new StringBuilder("{\"daily\":[");
@@ -142,6 +196,7 @@ public class Overview {
          .append(",\"budget\":").append(BUDGET)
          .append(",\"expense\":").append(Math.round(expense * 100) / 100.0)
          .append(",\"income\":").append(Math.round(income * 100) / 100.0)
+         .append(",\"rows\":").append(rowsJson())
          .append('}');
         return b.toString();
     }

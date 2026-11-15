@@ -76,6 +76,12 @@ public class WebServer {
                 case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else redirect(ex, "/main#details"); }
                 case "/budget"       -> redirect(ex, "/main#budget");
                 case "/settings"     -> redirect(ex, "/main#settings");
+                case "/api/month"    -> {
+                    Map<String, String> qp = parseQuery(ex.getRequestURI().getQuery());
+                    int mm = Date_time.getMonth();
+                    try { if (qp.get("m") != null) mm = Integer.parseInt(qp.get("m")); } catch (Exception ignore) {}
+                    json(ex, Overview.load(mm).monthJson());
+                }
                 case "/export"       -> handleExportData(ex);
                 case "/chart-img"    -> serveChart(ex);
                 case "/ai/status"    -> json(ex, AiAssistant.statusJson());
@@ -983,7 +989,7 @@ public class WebServer {
           .append("</div></section>");
 
         sb.append("<section class='panel'><header class='ph'><span class='label'>分类结构 / BREAKDOWN</span>")
-          .append("<span class='act'>").append(ov.cats.size()).append(" 类</span></header>")
+          .append("<span class='act' id='ringNote'>").append(ov.month).append(" 月 · ").append(ov.cats.size()).append(" 类</span></header>")
           .append("<div class='share'><div class='ringWrap'>")
           .append("<svg id='ring' width='150' height='150' viewBox='0 0 150 150' role='img' aria-label='支出结构：内环日常/特殊，外环细分类'></svg>")
           .append("<div class='center'><span class='v' id='ringVal'>¥").append(money(ov.expense)).append("</span>")
@@ -993,10 +999,11 @@ public class WebServer {
 
         // ---- 最近流水 ----
         sb.append("<section class='panel'><header class='ph'><span class='label'>最近流水 / RECENT</span>")
-          .append("<a href='/query' class='act'>全部账目 DETAILS →</a></header>")
+          .append("<span class='phTools'><span class='act' id='recentNote'>本月 · 共 ").append(ov.count).append(" 条</span>")
+          .append("<button class='link' id='recentReset' type='button' hidden>显示本月全部</button></span></header>")
           .append("<table><thead><tr><th style='width:100px'>编号 / NO.</th><th style='width:104px'>日期 / DATE</th>")
           .append("<th style='width:110px'>分类 / TAG</th><th>备注 / NOTE</th>")
-          .append("<th style='width:140px;text-align:right'>金额 / AMOUNT</th></tr></thead><tbody>");
+          .append("<th style='width:140px;text-align:right'>金额 / AMOUNT</th></tr></thead><tbody id='recentBody'>");
         int no = ov.count;
         for (Overview.Row r : ov.recent) {
             sb.append("<tr><td class='id'>").append(String.format("%06d", Math.max(1, no--))).append("</td>")
