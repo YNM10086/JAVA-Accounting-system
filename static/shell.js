@@ -307,12 +307,58 @@
     idleLoop(true);
   }
 
+
+  /* ---------------- 6. 单页锚点：点击定位 + 滚动高亮 ---------------- */
+  function navSpy() {
+    const view = document.querySelector(".view");
+    const links = Array.prototype.slice.call(document.querySelectorAll(".nav a[href^='#']"));
+    if (!view || !links.length) return;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const go = (id) => {
+      const t = document.getElementById(id);
+      if (!t) return false;
+      t.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+      history.replaceState(null, "", "#" + id);
+      return true;
+    };
+
+    links.forEach((a) => a.addEventListener("click", (e) => {
+      const id = a.getAttribute("href").slice(1);
+      if (go(id)) e.preventDefault();
+    }));
+
+    // 首次带 # 进页面时，等布局稳定再定位
+    if (location.hash) setTimeout(() => go(location.hash.slice(1)), 80);
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        links.forEach((l) => l.classList.toggle("on", l.getAttribute("href") === "#" + en.target.id));
+      });
+    }, { root: view, rootMargin: "-8px 0px -70% 0px", threshold: 0 });
+    document.querySelectorAll("section.sec").forEach((s) => io.observe(s));
+  }
+
+  /* ---------------- 7. 设置页里的 AI 状态 ---------------- */
+  function settingsBits() {
+    const el = document.getElementById("settingsAi");
+    if (!el) return;
+    fetch("/ai/status", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((j) => { el.textContent = j.ok ? "Ollama · " + (j.model || "已连接") : "离线（Ollama 未启动）"; })
+      .catch(() => { el.textContent = "读取失败"; });
+  }
+
   /* ---------------- 5. 挂载 ---------------- */
   function mount() {
     ocean();
     clock();
     corners();
     aiInit();
+    navSpy();
+    settingsBits();
+    if (window.__flash) flash(window.__flash[0], window.__flash[1]);
 
     // 状态栏右侧那排装饰条
     const bc = $("barcode");
@@ -341,7 +387,17 @@
     }
   }
 
-  window.Shell = { mount, corners };
+  /* ---------------- 8. 顶部闪现提示（由页面脚本调用） ---------------- */
+  function flash(text, isErr) {
+    if (!text) return;
+    const d = document.createElement("div");
+    d.className = "flash" + (isErr ? " err" : "");
+    d.textContent = text;
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 2800);
+  }
+
+  window.Shell = { mount, corners, flash };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();
 })();

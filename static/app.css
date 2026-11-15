@@ -447,3 +447,70 @@
 .legend span[hidden]{display:none !important}
 
 .legend em{font-style:normal}
+
+/* ========== 单页：section 排版 ========== */
+.sec{scroll-margin-top:10px;margin-bottom:26px}
+.sec:last-of-type{margin-bottom:0}
+.pagehead h1 .no{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--faint);
+  margin-right:10px;vertical-align:3px;
+}
+.pad{padding:16px}
+.bTrack{height:3px;background:rgba(155,180,225,.14)}
+.bTrack i{display:block;height:100%;background:var(--accent)}
+.bTrack.big{height:8px;margin:2px 0 10px}
+.bTrack i.warn{background:#ffb066}
+.bTrack i.over{background:var(--expense)}
+.act.danger{color:var(--expense)}
+.hint{font-size:11.5px;line-height:1.75;color:var(--dim);margin:8px 0 0}
+
+/* 表单 */
+.formGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:end}
+.formGrid4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld > span{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--faint)}
+.fld input,.fld select{
+  height:34px;padding:0 10px;border:1px solid var(--line);background:rgba(255,255,255,.02);
+  color:var(--ink);font-family:var(--zh);font-size:12.5px;outline:none;border-radius:0;
+  transition:border-color .15s linear,background .15s linear;
+}
+.fld input:hover,.fld select:hover{border-color:rgba(155,180,225,.32)}
+.fld input:focus,.fld select:focus{border-color:rgba(255,138,30,.6);background:rgba(255,138,30,.04)}
+.fld input::placeholder{color:var(--faint)}
+.fldBtn{grid-column:1/-1;display:flex;flex-direction:row;align-items:center;justify-content:flex-end}
+.fldBtn .btn{height:34px;min-width:168px;justify-content:center}
+
+/* 统计块 */
+.statGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.statCard{display:flex;flex-direction:column;gap:8px;padding:12px 14px}
+.statCard .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--faint)}
+.statCard .v{font-family:var(--mono);font-size:17px;font-weight:400;letter-spacing:.02em}
+
+/* 设置页的键值表 */
+.kv{display:grid;grid-template-columns:110px 1fr;gap:12px 20px;margin:0 0 4px}
+.kv dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint);padding-top:3px}
+.kv dd{margin:0;font-size:12.5px;color:var(--ink)}
+.kv dd.pills{display:flex;flex-wrap:wrap;gap:6px}
+.kv .pill{
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim);
+  border:1px solid var(--line);padding:2px 8px;
+}
+
+/* 行内删除按钮 */
+.link{border:0;background:none;padding:0;cursor:pointer;color:var(--faint);font-size:11px;font-family:var(--zh)}
+.link:hover{color:var(--ink)}
+.link.danger:hover{color:var(--expense)}
+td.empty,.empty{text-align:center;color:var(--faint);padding:22px 0}
+
+/* 顶部闪现提示 */
+.flash{
+  position:fixed;left:50%;top:66px;transform:translateX(-50%);z-index:60;
+  padding:8px 16px;border:1px solid rgba(79,227,193,.5);background:rgba(9,12,19,.96);
+  color:var(--income);font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+  animation:flashOut 2.6s ease forwards;
+}
+.flash.err{border-color:rgba(255,90,90,.5);color:var(--expense)}
+@keyframes flashOut{0%{opacity:0;transform:translate(-50%,-6px)}12%{opacity:1;transform:translate(-50%,0)}80%{opacity:1}100%{opacity:0}}
+
+.headtool a.act,.ph a.act{color:var(--dim);text-decoration:none}
+.headtool a.act:hover,.ph a.act:hover{color:var(--accent)}

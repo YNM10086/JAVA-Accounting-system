@@ -70,11 +70,12 @@ public class WebServer {
                     else redirect(ex, "/main");
                 }
                 case "/splash-done"  -> { splashPending = false; redirect(ex, "/main"); }
-                case "/main"         -> html(ex, mainPage());
-                case "/save"         -> { if ("POST".equals(method)) handleSavePost(ex, parseForm(ex)); else html(ex, savePage(null)); }
-                case "/income"       -> { if ("POST".equals(method)) handleIncomePost(ex, parseForm(ex)); else html(ex, incomePage()); }
-                case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else html(ex, queryPage(ex)); }
-                case "/budget"       -> html(ex, budgetPage());
+                case "/main"         -> html(ex, mainPage(ex.getRequestURI().getQuery()));
+                case "/save"         -> { if ("POST".equals(method)) handleSavePost(ex, parseForm(ex)); else redirect(ex, "/main#entry"); }
+                case "/income"       -> { if ("POST".equals(method)) handleIncomePost(ex, parseForm(ex)); else redirect(ex, "/main#income"); }
+                case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else redirect(ex, "/main#details"); }
+                case "/budget"       -> redirect(ex, "/main#budget");
+                case "/settings"     -> redirect(ex, "/main#settings");
                 case "/export"       -> handleExportData(ex);
                 case "/chart-img"    -> serveChart(ex);
                 case "/ai/status"    -> json(ex, AiAssistant.statusJson());
@@ -90,6 +91,14 @@ public class WebServer {
         } catch (Exception e) {
             html(ex, errorPage(e.getMessage()));
         }
+    }
+
+    /** 写完数据回到单页的对应锚点；msg 为空表示成功，否则是错误文案 */
+    private static void backTo(HttpExchange ex, String section, String msg) throws IOException {
+        String q = (msg == null || msg.isEmpty())
+            ? "ok=1"
+            : "err=" + java.net.URLEncoder.encode(msg, StandardCharsets.UTF_8);
+        redirect(ex, "/main?" + q + "#" + section);
     }
 
     // ==================== 登录 ====================
@@ -122,18 +131,18 @@ public class WebServer {
         String typeStr = f.get("type");
 
         if (goods == null || goods.trim().isEmpty() || priceStr == null || typeStr == null) {
-            html(ex, savePage("商品名和价格不能为空", month, day)); return;
+            backTo(ex, "entry", "商品名和价格不能为空"); return;
         }
         double price;
         try { price = Double.parseDouble(priceStr); } catch (NumberFormatException e) {
-            html(ex, savePage("价格格式错误", month, day)); return;
+            backTo(ex, "entry", "价格格式错误"); return;
         }
         int num1 = "1".equals(typeStr) ? 1 : 2;
         String cat = Cat.clean(f.get("cat"), goods);
 
         String table = String.format("table_%02d", month);
         Connection conn = One.getConn();
-        if (conn == null) { html(ex, savePage("数据库连接失败", month, day)); return; }
+        if (conn == null) { backTo(ex, "entry", "数据库连接失败"); return; }
         try {
             ensureCatColumn(conn);
             PreparedStatement ps = One.getPreparedStmt(conn,
@@ -146,10 +155,10 @@ public class WebServer {
             ps.executeUpdate();
             ps.close();
             conn.close();
-            html(ex, savePage("存入成功！", month, day));
+            backTo(ex, "entry", "");
         } catch (Exception e) {
             conn.close();
-            html(ex, savePage("存入失败：" + e.getMessage(), month, day));
+            backTo(ex, "entry", "存入失败：" + e.getMessage());
         }
     }
 
@@ -157,7 +166,7 @@ public class WebServer {
         Archiver.ensureRollover(); // 写入前检查跨年
         int month = Date_time.getMonth();
         Connection conn = One.getConn();
-        if (conn == null) { redirect(ex, "/income"); return; }
+        if (conn == null) { backTo(ex, "income", "数据库连接失败"); return; }
         try {
             initTable(conn);
             // 删除
@@ -171,7 +180,7 @@ public class WebServer {
                 int day;
                 try { day = Integer.parseInt(f.get("date")); } catch (Exception e) { day = Date_time.getDay(); }
                 double amount;
-                try { amount = Double.parseDouble(f.get("amount")); } catch (Exception e) { redirect(ex, "/income"); conn.close(); return; }
+                try { amount = Double.parseDouble(f.get("amount")); } catch (Exception e) { conn.close(); backTo(ex, "income", "金额格式错误"); return; }
                 String desc = f.get("description");
                 if (desc == null) desc = "";
                 PreparedStatement ps = One.getPreparedStmt(conn,
@@ -180,8 +189,8 @@ public class WebServer {
                 ps.executeUpdate(); ps.close();
             }
             conn.close();
-        } catch (Exception e) { try { conn.close(); } catch (Exception ignored) {} }
-        redirect(ex, "/income");
+        } catch (Exception e) { try { conn.close(); } catch (Exception ignored) {} backTo(ex, "income", e.getMessage()); return; }
+        backTo(ex, "income", "");
     }
 
     // ==================== AI 记账（本地 Ollama） ====================
@@ -296,6 +305,12 @@ public class WebServer {
             st.close();
         } catch (Exception e) { /* 表已存在则忽略 */ }
         ensureCatColumn(conn);
+    }
+
+    /** 拼成 JS 字符串字面量（带引号），用于把后端的提示交给前端弹 */
+    private static String jsStr(String s) {
+        if (s == null) return "''";
+        return "'" + s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "") + "'";
     }
 
     /** Cat.ALL 的 JS 数组字面量，前端下拉与后端白名单同源 */
@@ -788,7 +803,7 @@ public class WebServer {
             e.printStackTrace();
         }
         conn.close();
-        redirect(ex, "/query?month=" + month + "&day=" + day);
+        backTo(ex, "details", "");
     }
 
     // ==================== 特殊消费 ====================
@@ -900,8 +915,15 @@ public class WebServer {
     }
 
 
-    private static String mainPage() {
+    private static String mainPage() { return mainPage(null); }
+
+    private static String mainPage(String rawQuery) {
         Overview ov = Overview.load();
+        Map<String, String> q = rawQuery == null || rawQuery.isEmpty()
+            ? new HashMap<>() : parseQuery(rawQuery);
+        String flash = "";
+        if (q.get("err") != null) flash = "<script>window.__flash=[" + jsStr(q.get("err")) + ",true];</script>";
+        else if (q.get("ok") != null) flash = "<script>window.__flash=['✓ 已保存',false];</script>";
         String ymd = Date_time.getYear() + "-" + String.format("%02d", ov.month);
         String table = String.format("table_%02d", ov.month);
         double balance = ov.income - ov.expense;
@@ -909,6 +931,7 @@ public class WebServer {
         double avg = ov.count > 0 ? ov.expense / Math.max(1, Date_time.getDay()) : 0;
 
         StringBuilder sb = new StringBuilder();
+        sb.append("<section class='sec' id='overview'>");
         sb.append("<div class='pagehead'><div><h1>总览</h1><div class='sub'><span class='bar'></span>")
           .append("<span class='label'>OVERVIEW / ").append(ymd).append(" / 本月累计</span></div></div>")
           .append("<div class='headtool'><span class='chip'>").append(Date_time.getYear())
@@ -989,7 +1012,14 @@ public class WebServer {
         sb.append("</tbody><tfoot><tr><td colspan='4'>共 ").append(ov.count).append(" 条记录 · 表 ").append(table).append("</td>")
           .append("<td class='sum'>合计 <b>¥").append(String.format("%,.2f", ov.expense)).append("</b></td></tr></tfoot></table></section>");
 
+        sb.append("</section>");
+        sb.append(Sections.entry());
+        sb.append(Sections.income(ov));
+        sb.append(Sections.details(ov));
+        sb.append(Sections.budget(ov));
+        sb.append(Sections.settings(ov));
         sb.append("<script>window.OV=").append(ov.json()).append(";</script>");
+        sb.append(flash);
         return shell("总览", "overview", sb.toString());
     }
 
@@ -1279,12 +1309,12 @@ public class WebServer {
 
     /** 左栏导航：key / 序号 / 中文 / 英文 / 路由。设置页 P2 才上线，先置灰。 */
     private static final String[][] NAV = {
-        {"overview", "01", "总览", "OVERVIEW", "/main", ""},
-        {"entry",    "02", "记一笔", "ENTRY", "/save", ""},
-        {"income",   "03", "收入", "INCOME", "/income", ""},
-        {"details",  "04", "明细", "DETAILS", "/query", ""},
-        {"budget",   "05", "预算", "BUDGET", "/budget", ""},
-        {"settings", "06", "设置", "SETTINGS", "/settings", "off"},
+        {"overview", "01", "总览", "OVERVIEW", "#overview", ""},
+        {"entry",    "02", "记一笔", "ENTRY", "#entry", ""},
+        {"income",   "03", "收入", "INCOME", "#income", ""},
+        {"details",  "04", "明细", "DETAILS", "#details", ""},
+        {"budget",   "05", "预算", "BUDGET", "#budget", ""},
+        {"settings", "06", "设置", "SETTINGS", "#settings", ""},
         {"export",   "07", "导出", "EXPORT", "/export", ""},
     };
 
