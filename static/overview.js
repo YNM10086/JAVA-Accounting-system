@@ -42,7 +42,7 @@
     if (!list.length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 5;
+      td.colSpan = 6;
       td.className = "empty";
       td.textContent = "这一天没有记录";
       tr.appendChild(td);
@@ -58,9 +58,14 @@
       const tdTag = document.createElement("td"); tdTag.className = "tag";
       const tick = document.createElement("span"); tick.className = "tick"; tick.style.background = rank[r.c] || "#414a5a";
       tdTag.appendChild(tick); tdTag.appendChild(document.createTextNode(r.c));
+      const tdType = document.createElement("td"); tdType.className = "type";
+      const badge = document.createElement("span");
+      badge.className = r.n === 1 ? "t1" : "t2";
+      badge.textContent = r.n === 1 ? "日常" : "特殊";
+      tdType.appendChild(badge);
       const tdNote = document.createElement("td"); tdNote.className = "note"; tdNote.textContent = r.g;
       const tdAmt = document.createElement("td"); tdAmt.className = "amt out"; tdAmt.textContent = "-¥" + fmt2(r.p);
-      tr.append(tdId, tdDt, tdTag, tdNote, tdAmt);
+      tr.append(tdId, tdDt, tdTag, tdType, tdNote, tdAmt);
       body.appendChild(tr);
     });
 

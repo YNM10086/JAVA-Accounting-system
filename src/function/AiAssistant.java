@@ -234,7 +234,7 @@ public class AiAssistant {
                 "规则：餐饮=吃饭喝饮料；交通=地铁公交打车加油停车；居住=房租水电燃气宽带物业话费；" +
                 "娱乐=电影游戏演出旅游会员；购物=衣物数码日用；教育=课程书籍考试；" +
                 "AI API=模型/接口/token 订阅；医疗=看病买药体检；人情=红包礼物请客随礼；其余归其他。\n" +
-                "只输出 JSON，不要解释：{\"items\":[{\"i\":序号,\"cat\":\"类别\"}]}";
+                "只输出 JSON，不要解释：{\"items\":[{\"i\":序号,\"g\":\"商品原文\",\"cat\":\"类别\"}]}，g 必须原样抄回商品名";
 
             PreparedStatement ps = conn.prepareStatement(
                 "UPDATE " + table + " SET cat=? WHERE date=? AND goods=? AND price=? AND num_1=?");
@@ -251,10 +251,19 @@ public class AiAssistant {
                 payload.append(']');
 
                 Map<String, Object> root = Json.map(Json.parse(extractJson(chat(sys, payload.toString()))));
+                boolean[] used = new boolean[to - from];
                 for (Object o : Json.list(root.get("items"))) {
                     Map<String, Object> m = Json.map(o);
                     int idx = Json.i(m.get("i"), -1);
+                    // 模型有时把序号写错一位：优先按回抄的商品名对齐，对不上再用序号
+                    String echo = Json.str(m.get("g"));
+                    if (echo != null) {
+                        for (int k = 0; k < used.length; k++) {
+                            if (!used[k] && echo.trim().equals(String.valueOf(rows.get(from + k)[1]).trim())) { idx = k; break; }
+                        }
+                    }
                     if (idx < 0 || from + idx >= to) continue;
+                    used[idx] = true;
                     String cat = Cat.clean(Json.str(m.get("cat")), (String) rows.get(from + idx)[1]);
                     Object[] r = rows.get(from + idx);
                     if (cat.equals(r[4])) continue;

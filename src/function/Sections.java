@@ -139,15 +139,16 @@ public final class Sections {
           .append("</div>");
 
         sb.append("<div class='panel'><table><thead><tr><th style='width:92px'>日期</th>")
-          .append("<th style='width:110px'>分类</th><th>备注</th>")
+          .append("<th style='width:110px'>分类</th><th style='width:72px'>性质</th><th>备注</th>")
           .append("<th style='width:120px;text-align:right'>金额</th><th style='width:64px'></th></tr></thead><tbody>");
         if (rows.isEmpty()) {
-            sb.append("<tr><td colspan='5' class='empty'>本月还没有记录</td></tr>");
+            sb.append("<tr><td colspan='6' class='empty'>本月还没有记录</td></tr>");
         }
         for (String[] r : rows) {
             sb.append("<tr><td class='dt'>").append(String.format("%02d", Integer.parseInt(r[0]))).append(" 日</td>")
               .append("<td class='tag' data-cat='").append(esc(r[4])).append("'><span class='tick'></span>")
               .append(esc(r[4])).append("</td>")
+              .append(WebServer.typeCell(Integer.parseInt(r[3])))
               .append("<td class='note'>").append(esc(r[1])).append("</td>")
               .append("<td class='amt out'>-¥").append(r[2]).append("</td>")
               .append("<td><form method='post' action='/query'>")

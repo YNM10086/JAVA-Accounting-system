@@ -1002,7 +1002,7 @@ public class WebServer {
           .append("<span class='phTools'><span class='act' id='recentNote'>本月 · 共 ").append(ov.count).append(" 条</span>")
           .append("<button class='link' id='recentReset' type='button' hidden>显示本月全部</button></span></header>")
           .append("<table><thead><tr><th style='width:100px'>编号 / NO.</th><th style='width:104px'>日期 / DATE</th>")
-          .append("<th style='width:110px'>分类 / TAG</th><th>备注 / NOTE</th>")
+          .append("<th style='width:110px'>分类 / TAG</th><th style='width:76px'>性质 / TYPE</th><th>备注 / NOTE</th>")
           .append("<th style='width:140px;text-align:right'>金额 / AMOUNT</th></tr></thead><tbody id='recentBody'>");
         int no = ov.count;
         for (Overview.Row r : ov.recent) {
@@ -1010,13 +1010,14 @@ public class WebServer {
               .append("<td class='dt'>").append(ymd).append("-").append(String.format("%02d", r.date)).append("</td>")
               .append("<td class='tag' data-cat='").append(esc(r.cat)).append("'><span class='tick'></span>")
               .append(esc(r.cat)).append("</td>")
+              .append(typeCell(r.num1))
               .append("<td class='note'>").append(esc(r.goods)).append("</td>")
               .append("<td class='amt out'>-¥").append(String.format("%,.2f", r.price)).append("</td></tr>");
         }
         if (ov.recent.isEmpty()) {
-            sb.append("<tr><td colspan='5' style='text-align:center;color:var(--faint);padding:22px 0'>本月还没有记录</td></tr>");
+            sb.append("<tr><td colspan='6' style='text-align:center;color:var(--faint);padding:22px 0'>本月还没有记录</td></tr>");
         }
-        sb.append("</tbody><tfoot><tr><td colspan='4'>共 ").append(ov.count).append(" 条记录 · 表 ").append(table).append("</td>")
+        sb.append("</tbody><tfoot><tr><td colspan='5'>共 ").append(ov.count).append(" 条记录 · 表 ").append(table).append("</td>")
           .append("<td class='sum'>合计 <b>¥").append(String.format("%,.2f", ov.expense)).append("</b></td></tr></tfoot></table></section>");
 
         sb.append("</section>");
@@ -1032,6 +1033,13 @@ public class WebServer {
 
     private static String money(double v) {
         return String.format("%,.0f", v);
+    }
+
+    /** 日常 / 特殊 的小标签，和环图内环同一套色 */
+    static String typeCell(int num1) {
+        return num1 == 1
+            ? "<td class='type'><span class='t1'>日常</span></td>"
+            : "<td class='type'><span class='t2'>特殊</span></td>";
     }
 
     private static String kpiCard(String ghost, String label, double value, String cls, String note, boolean accent) {

@@ -514,3 +514,14 @@ td.empty,.empty{text-align:center;color:var(--faint);padding:22px 0}
 
 .headtool a.act,.ph a.act{color:var(--dim);text-decoration:none}
 .headtool a.act:hover,.ph a.act:hover{color:var(--accent)}
+
+/* 性质小标签（日常 / 特殊），与双环内环同色 */
+td.type{white-space:nowrap}
+td.type span{
+  display:inline-block;padding:1px 7px;border:1px solid transparent;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;
+}
+td.type .t1{color:var(--accent);background:rgba(255,138,30,.1);border-color:rgba(255,138,30,.28)}
+td.type .t2{color:#9db0cc;background:rgba(91,112,143,.16);border-color:rgba(91,112,143,.38)}
+
+thead th{white-space:nowrap}
