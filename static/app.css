@@ -530,3 +530,9 @@ thead th{white-space:nowrap}
 .tableMore{padding:10px 12px;border-top:1px solid var(--line);text-align:center}
 .tableMore .link{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim)}
 .tableMore .link:hover{color:var(--accent)}
+
+/* 预算段：改预算的小表单（两列，别占满整行） */
+.budgetForm{grid-template-columns:220px 168px;margin-bottom:16px}
+.budgetForm .fldBtn{grid-column:auto;justify-content:flex-start}
+.budgetForm .fldBtn .btn{width:168px;min-width:0}
+.formGrid3{grid-template-columns:repeat(3,minmax(0,1fr))}

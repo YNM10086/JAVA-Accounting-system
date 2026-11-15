@@ -17,10 +17,11 @@ import java.util.Map;
  */
 public class Overview {
 
-    public static final double BUDGET = 1500;
+    /** 没有单独设置过预算时用的默认值；每月可在预算段改 */
+    public static final double DEFAULT_BUDGET = 1500;
 
     public int month, days, count;
-    public double income, expense, prevExpense, daily, special;
+    public double income, expense, prevExpense, daily, special, budget = DEFAULT_BUDGET;
     public double[] perDay = new double[32];              // 1..31 每日支出
     public double[] perMonth = new double[13];            // 1..12 每月总支出（全年）
     public double[] perDayPrev = new double[32];
@@ -48,6 +49,7 @@ public class Overview {
         try {
             WebServer.ensureCatColumn(conn);
             o.income = income(conn, o.month);
+            o.budget = budgetOf(conn, o.month);
 
             try (Statement st = conn.createStatement()) {
                 try (ResultSet rs = st.executeQuery(
@@ -104,6 +106,20 @@ public class Overview {
             try { conn.close(); } catch (Exception ignored) {}
         }
         return o;
+    }
+
+    /** 当月预算：没设过就回默认 1500 */
+    private static double budgetOf(Connection conn, int month) {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE IF NOT EXISTS budgets (month INT PRIMARY KEY, amount DECIMAL(10,2) NOT NULL)");
+        } catch (Exception ignore) { /* 建表失败不影响读 */ }
+        try (PreparedStatement ps = conn.prepareStatement("SELECT amount FROM budgets WHERE month = ?")) {
+            ps.setInt(1, month);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getDouble(1);
+            }
+        } catch (Exception ignore) { /* 表还没建 */ }
+        return DEFAULT_BUDGET;
     }
 
     private static double income(Connection conn, int month) {
@@ -193,7 +209,7 @@ public class Overview {
         }
         b.append("],\"types\":[{\"n\":\"日常\",\"v\":").append(Math.round(daily * 100) / 100.0)
          .append("},{\"n\":\"特殊\",\"v\":").append(Math.round(special * 100) / 100.0).append("}]")
-         .append(",\"budget\":").append(BUDGET)
+         .append(",\"budget\":").append(Math.round(budget * 100) / 100.0)
          .append(",\"expense\":").append(Math.round(expense * 100) / 100.0)
          .append(",\"income\":").append(Math.round(income * 100) / 100.0)
          .append(",\"rows\":").append(rowsJson())

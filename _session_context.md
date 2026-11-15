@@ -47,7 +47,10 @@
   - **改版方向（用户定）**：不再一页一功能，改成**单页滚动**——左栏是锚点导航（scrollspy），滚轮浏览全部；表单 POST 后 302 回 `/main#section`，旧路由保留为重定向。Task 6 已按此改写。
   - 总览图表加**双模式**（2026-11-15）：`本月每日`（1 日～今天，7 日均线，悬停读数）/ `全年每月`（1–12 月总额，高亮本月，无均线）；标题、图例、右上读数随模式切换。
   - **单页化完成（2026-11-15）**：`/main` 一页装 6 段（overview/entry/income/details/budget/settings），左栏改锚点 + `IntersectionObserver` 高亮，点导航平滑定位；表单 POST 后 `302 /main?ok=1#段`，顶部弹出提示；旧路由 `/save` `/income` `/query` `/budget` `/settings` 全部重定向到对应锚点。删除走 `/query` 的 action=delete（按 date+goods）。实测：提交→回锚点→提示→明细可见→删除→消失，全通；`view.scrollHeight 2779 / 视口 804`。
-  - 下一步：Task 7 开屏（`splash.html` 进 `static/`），Task 8 清理旧 `css()`/`page()`/旧页面方法 + `/chart-img`
+  - **开屏接真（2026-11-15）**：`static/splash.html` 接管 `/`（缺失退回旧内联），SKIP 提示 + 12.9s 自动进；换标题/版本号。快捷键：F2 定位记一笔、K 唤 AI、Esc 关面板/回顶部。
+  - **旧代码清理（2026-11-15）**：删掉 `css()`/`page()`/`pageRaw()`/`savePage`/`incomePage`/`queryPage`/`budgetPage`/`specialPage`/`detailPage`/`chartPage`/`card()`/`serveChart` 与 `/chart-img` 路由，`WebServer.java` 1518 → 844 行；`errorPage` 改用 `shell()`。
+  - **预算可按月改（2026-11-15）**：新增 `budgets(month, amount)` 表（幂等建表），`Overview.budget` 按月读、默认 1500；预算段自带表单（POST `/budget`，`ON DUPLICATE KEY UPDATE`），改完 KPI/进度条/每日可用全跟着变。
+  - 下一步：分类清单可配置、明细按月翻页、桌面打包回归
 - [x] 开屏动画（CAD 分镜）— 原型 `design_tmp/prototype/splash.html` 已定稿（v13，`?t=秒` 定格、`?debug=1`、`?labels=1`）；将来落到 `static/`（网页开屏）或 `desktop/`（Electron 启动画面）时直接搬
 - [x] 操作界面设计 — `design_tmp/prototype/app.html`（开屏之后的主界面）v3：鲨鱼背景接 `static/ascii-ocean.js`（`?nbg=1` 关）、`?nofx=1` 关进场动效（截图必用）、`?t=秒` 定格进场（出分镜图）。四张 KPI（收入/支出/结余/预算进度）、30 天支出柱状 + 悬停读数、分类环图（图例联动）、最近流水 + 表尾合计、状态栏。主色橙 `#ff8a1e`（用户已定），背景维持现状（面板 87% 不透明）。1440×900 一屏装下。v3 三件事：①顶部 AI 小球（点开输入框 → 假解析 → 预览 → 入库 → 本月建议；挂机 30s 主动冒泡、之后 2min 一句），气泡/面板同一套直角发丝线语言；②进场拆两拍——顶栏/左栏 1px 橙光扫过 + 导航错峰亮起（0~.6s），再页头/KPI/图表/表格依次上浮（.6s 起，总长 1.5s）；③环图改成**同心双环**：内环日常/特殊、外环 6 细类（餐饮/其他/购物/教育/娱乐/AI API），按性质成组排序，悬停互相联动、中心读数跟着换。自检 `prototype/_check_ai.py`。**下一步待定**：记一笔 / 明细 / 预算页，或总览接真实后端数据
 - [x] 接入本地 Ollama AI（技术验证版，2026-11-11）— 右下角挂件：单击输入自然语言 → 预览（商品/金额/日常或特殊/日期）→ 确认入库 → 自动给本月建议；双击直接要建议；空闲 60 秒冒泡提醒。模型默认 `qwen2.5:7b`，`LOH_AI_MODEL` / `LOH_AI_URL` 可覆盖

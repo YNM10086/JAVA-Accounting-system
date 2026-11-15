@@ -176,7 +176,7 @@ public final class Sections {
 
     /* ---------------- 预算 ---------------- */
     public static String budget(Overview ov) {
-        double budget = Overview.BUDGET;
+        double budget = ov.budget;
         double left = budget - ov.expense;
         int remainDays = Date_time.getRemainingDays();
         double perDay = left > 0 ? left / Math.max(1, remainDays) : 0;
@@ -195,6 +195,11 @@ public final class Sections {
           .append(stat("每日可用", left > 0 ? "¥" + String.format("%.2f", perDay) + " × " + remainDays + " 天" : "已用完"))
           .append("</div>")
           .append("<div class='panel pad'>")
+          .append("<form class='formGrid formGrid3 budgetForm' method='post' action='/budget'>")
+          .append("<label class='fld'><span>本月预算（元）</span><input name='amount' type='number' step='1' min='0' value='")
+          .append(String.format("%.0f", budget)).append("'></label>")
+          .append("<div class='fld fldBtn'><button class='btn solid' type='submit'>保存预算</button></div>")
+          .append("</form>")
           .append("<div class='bTrack big'><i class='").append(state).append("' style='width:")
           .append(String.format("%.1f", Math.min(used, 100))).append("%'></i></div>")
           .append("<p class='hint'>本月还剩 ").append(remainDays).append(" 天，")
@@ -212,11 +217,11 @@ public final class Sections {
         return "<section class='sec' id='settings'>" +
             head("06", "设置", "SETTINGS / 只读", "") +
             "<div class='panel pad'><dl class='kv'>" +
-            "<dt>每月预算</dt><dd>¥" + money(Overview.BUDGET) + "</dd>" +
+            "<dt>每月预算</dt><dd>¥" + money(ov.budget) + "（在「预算」段可改，每月可不同）</dd>" +
             "<dt>分类清单</dt><dd class='pills'>" + cats + "</dd>" +
             "<dt>数据库</dt><dd>MySQL · Cost_system · 当月表 " + String.format("table_%02d", ov.month) + "</dd>" +
             "<dt>AI 引擎</dt><dd id='settingsAi'>读取中…</dd>" +
-            "</dl><p class='hint'>预算与分类暂时写死在后端（`Overview.BUDGET` / `Cat.ALL`），改这里属于下一步。</p></div>" +
+            "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }
 }
