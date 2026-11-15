@@ -22,92 +22,156 @@
     return e;
   };
 
-  /* ---------------- 1. 本月每日支出柱状 + 7 日均线 ---------------- */
+  /* ---------------- 1. 支出柱状：本月每日 ⇄ 全年每月 ---------------- */
   function drawFlow() {
     const svg = $("flow");
     if (!svg || !OV.daily) return;
+    const meta = $("flowMeta"), seg = $("flowSeg"), legAvg = $("legAvg");
+    const label = $("flowLabel"), legTxt = $("legDailyTxt");
     const W = 1000, H = 190, padL = 10, padR = 46, top = 14, base = H - 30;
-    const today = Math.min(OV.daily.length, OV.today || OV.daily.length);
-    const data = OV.daily.slice(0, Math.max(1, today));      // 只画已经过去的日子
-    const n = data.length;
-    const peak = Math.max(1, ...data);
-    const max = peak * 1.15;
-    const slot = (W - padL - padR) / n;
-    const bw = Math.max(3, Math.min(slot * 0.62, 26));
-    const yOf = (v) => base - (v / max) * (base - top);
+    let mode = "day";
 
-    // 三条参考线 + 右侧刻度
-    [0, 0.5, 1].forEach((r) => {
-      const y = yOf(peak * r);
-      svg.appendChild(el("line", {
-        x1: padL, y1: y.toFixed(1), x2: W - padR, y2: y.toFixed(1),
-        stroke: "rgba(155,180,225," + (r === 0 ? ".24" : ".1") + ")", "stroke-width": 1,
-      }));
-      const t = el("text", {
-        x: W - padR + 6, y: (y + 3.5).toFixed(1), fill: "rgba(154,163,181,.75)",
-        "font-size": 9, "font-family": "var(--mono)",
+    const yOf = (v, max) => base - (v / max) * (base - top);
+
+    function grid(peak) {
+      [0, 0.5, 1].forEach((r) => {
+        const y = yOf(peak * r, peak * 1.15);
+        svg.appendChild(el("line", {
+          x1: padL, y1: y.toFixed(1), x2: W - padR, y2: y.toFixed(1),
+          stroke: "rgba(155,180,225," + (r === 0 ? ".24" : ".1") + ")", "stroke-width": 1,
+        }));
+        const t = el("text", {
+          x: W - padR + 6, y: (y + 3.5).toFixed(1), fill: "rgba(154,163,181,.75)",
+          "font-size": 9, "font-family": "var(--mono)",
+        });
+        t.textContent = r === 0 ? "0" : "¥" + fmt(peak * r);
+        svg.appendChild(t);
       });
-      t.textContent = r === 0 ? "0" : "¥" + fmt(peak * r);
-      svg.appendChild(t);
-    });
+    }
 
-    // 柱子 + 透明热区（柱子太细，热区按整列铺）
-    const metaDefault = "日均 ¥" + fmt(data.reduce((a, b) => a + b, 0) / Math.max(1, OV.today || n)) +
-      " · 峰值 ¥" + fmt(peak) + " · 悬停看单日";
-    const meta = $("flowMeta");
-    if (meta) meta.textContent = metaDefault;
-
-    data.forEach((v, i) => {
+    function col(i, slot, bw, h, fill, active) {
       const x = padL + slot * i + (slot - bw) / 2;
-      const y = yOf(v);
-      const h = Math.max(0, base - y);
-      const isToday = (i + 1) === today;
-
       const bar = el("rect", {
-        x: x.toFixed(1), y: y.toFixed(1), width: bw.toFixed(1), height: h.toFixed(1),
-        fill: v > 0 ? (isToday ? "#ff8a1e" : "rgba(255,138,30,.72)") : "rgba(255,138,30,.12)",
+        x: x.toFixed(1), y: (base - h).toFixed(1), width: bw.toFixed(1), height: Math.max(0, h).toFixed(1), fill,
       });
       bar.style.transition = "fill .12s linear";
       svg.appendChild(bar);
-
-      const hit = el("rect", { x: (padL + slot * i).toFixed(1), y: top, width: slot.toFixed(1), height: (base - top).toFixed(1), fill: "transparent" });
-      hit.style.cursor = "crosshair";
-      hit.addEventListener("pointerenter", () => {
-        bar.setAttribute("fill", "#ffb066");
-        if (meta) meta.textContent = (i + 1) + " 日 · ¥" + fmt2(v) + (isToday ? " · 今天" : "");
-      });
-      hit.addEventListener("pointerleave", () => {
-        bar.setAttribute("fill", v > 0 ? (isToday ? "#ff8a1e" : "rgba(255,138,30,.72)") : "rgba(255,138,30,.12)");
-        if (meta) meta.textContent = metaDefault;
-      });
-      svg.appendChild(hit);
-    });
-
-    // 7 日移动平均（只在已过去的日子上算，不把未来当成 0）
-    const pts = [];
-    for (let i = 0; i < n; i++) {
-      let sum = 0, cnt = 0;
-      for (let k = Math.max(0, i - 6); k <= i; k++) { sum += data[k]; cnt++; }
-      pts.push((padL + slot * i + slot / 2).toFixed(1) + "," + yOf(sum / cnt).toFixed(1));
+      return { bar, x, bw, active };
     }
-    svg.appendChild(el("polyline", {
-      points: pts.join(" "), fill: "none", stroke: "rgba(200,210,230,.62)",
-      "stroke-width": 1, "stroke-dasharray": "3 4",
-    }));
 
-    // 日期刻度：1 / 5 / 10 … + 今天
-    const marks = new Set([1, today]);
-    for (let d = 5; d < today; d += 5) marks.add(d);
-    marks.forEach((d) => {
-      const i = Math.min(n - 1, d - 1);
-      const t = el("text", {
-        x: (padL + slot * i + slot / 2).toFixed(1), y: base + 14,
-        "text-anchor": "middle", "font-size": 9, "font-family": "var(--mono)",
-        fill: d === today ? "rgba(255,138,30,.9)" : "rgba(154,163,181,.6)",
+    function hot(i, slot, label, onText, offText, repaint) {
+      const hit = el("rect", {
+        x: (padL + slot * i).toFixed(1), y: top, width: slot.toFixed(1), height: (base - top).toFixed(1), fill: "transparent",
       });
-      t.textContent = d + "日";
-      svg.appendChild(t);
-    });
+      hit.style.cursor = "crosshair";
+      hit.addEventListener("pointerenter", () => { repaint(true); if (meta) meta.textContent = onText; });
+      hit.addEventListener("pointerleave", () => { repaint(false); if (meta) meta.textContent = offText; });
+      svg.appendChild(hit);
+    }
+
+    /* ---- 本月每日 ---- */
+    function drawDay() {
+      const today = Math.min(OV.daily.length, OV.today || OV.daily.length);
+      const data = OV.daily.slice(0, Math.max(1, today));
+      const n = data.length;
+      const peak = Math.max(1, ...data);
+      const slot = (W - padL - padR) / n;
+      const bw = Math.max(3, Math.min(slot * 0.62, 26));
+      const def = "日均 ¥" + fmt(data.reduce((a, b) => a + b, 0) / Math.max(1, today)) +
+        " · 峰值 ¥" + fmt(peak) + " · 悬停看单日";
+      if (meta) meta.textContent = def;
+      if (legAvg) legAvg.hidden = false;
+      if (label) label.textContent = "本月每日支出 / DAILY";
+      if (legTxt) legTxt.textContent = "每日支出 DAILY";
+
+      grid(peak);
+      data.forEach((v, i) => {
+        const isToday = (i + 1) === today;
+        const h = (v / (peak * 1.15)) * (base - top);
+        const fill = v > 0 ? (isToday ? "#ff8a1e" : "rgba(255,138,30,.72)") : "rgba(255,138,30,.12)";
+        const c = col(i, slot, bw, h, fill, isToday);
+        hot(i, slot, i + 1,
+          (i + 1) + " 日 · ¥" + fmt2(v) + (isToday ? " · 今天" : ""), def,
+          (over) => c.bar.setAttribute("fill", over ? "#ffb066" : fill));
+      });
+
+      // 7 日移动平均（只在已过去的日子上算）
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        let sum = 0, cnt = 0;
+        for (let k = Math.max(0, i - 6); k <= i; k++) { sum += data[k]; cnt++; }
+        pts.push((padL + slot * i + slot / 2).toFixed(1) + "," + yOf(sum / cnt, peak * 1.15).toFixed(1));
+      }
+      svg.appendChild(el("polyline", {
+        points: pts.join(" "), fill: "none", stroke: "rgba(200,210,230,.62)",
+        "stroke-width": 1, "stroke-dasharray": "3 4",
+      }));
+
+      const marks = new Set([1, today]);
+      for (let d = 5; d < today; d += 5) marks.add(d);
+      marks.forEach((d) => {
+        const i = Math.min(n - 1, d - 1);
+        const t = el("text", {
+          x: (padL + slot * i + slot / 2).toFixed(1), y: base + 14, "text-anchor": "middle",
+          "font-size": 9, "font-family": "var(--mono)",
+          fill: d === today ? "rgba(255,138,30,.9)" : "rgba(154,163,181,.6)",
+        });
+        t.textContent = d + "日";
+        svg.appendChild(t);
+      });
+    }
+
+    /* ---- 全年每月 ---- */
+    function drawMonth() {
+      const months = OV.months || [];
+      const cur = OV.month || 12;
+      const peak = Math.max(1, ...months);
+      const slot = (W - padL - padR) / 12;
+      const bw = Math.max(10, Math.min(slot * 0.5, 40));
+      const past = months.slice(0, cur).reduce((a, b) => a + b, 0);
+      const def = "全年 ¥" + fmt(past) + " · 已过 " + cur + " 个月 · 月均 ¥" + fmt(past / Math.max(1, cur));
+      if (meta) meta.textContent = def;
+      if (legAvg) legAvg.hidden = true;
+      if (label) label.textContent = "全年每月支出 / MONTHLY";
+      if (legTxt) legTxt.textContent = "每月支出 MONTHLY";
+
+      grid(peak);
+      for (let i = 0; i < 12; i++) {
+        const v = months[i] || 0;
+        const isCur = (i + 1) === cur;
+        const future = (i + 1) > cur;
+        const h = (v / (peak * 1.15)) * (base - top);
+        const fill = future ? "transparent" : (isCur ? "#ff8a1e" : "rgba(255,138,30,.72)");
+        const c = col(i, slot, bw, h, fill, isCur);
+        hot(i, slot, i + 1,
+          (i + 1) + " 月 · " + (future ? "未到" : "¥" + fmt2(v)), def,
+          (over) => { if (!future) c.bar.setAttribute("fill", over ? "#ffb066" : fill); });
+
+        const t = el("text", {
+          x: (padL + slot * i + slot / 2).toFixed(1), y: base + 14, "text-anchor": "middle",
+          "font-size": 9, "font-family": "var(--mono)",
+          fill: isCur ? "rgba(255,138,30,.9)" : (future ? "rgba(154,163,181,.35)" : "rgba(154,163,181,.6)"),
+        });
+        t.textContent = (i + 1) + "月";
+        svg.appendChild(t);
+      }
+    }
+
+    function render() {
+      svg.innerHTML = "";
+      if (mode === "day") drawDay(); else drawMonth();
+    }
+
+    if (seg) {
+      seg.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-mode]");
+        if (!btn) return;
+        mode = btn.dataset.mode;
+        Array.prototype.forEach.call(seg.children, (b) => b.classList.toggle("on", b === btn));
+        render();
+      });
+    }
+    render();
   }
 
   /* ---------------- 2. 双环：内环性质、外环细类（前 5 + 其他） ---------------- */

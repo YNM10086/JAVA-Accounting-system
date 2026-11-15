@@ -22,6 +22,7 @@ public class Overview {
     public int month, days, count;
     public double income, expense, prevExpense, daily, special;
     public double[] perDay = new double[32];              // 1..31 每日支出
+    public double[] perMonth = new double[13];            // 1..12 每月总支出（全年）
     public double[] perDayPrev = new double[32];
     public LinkedHashMap<String, Double> cats = new LinkedHashMap<>(); // 按金额降序
     public List<Row> recent = new ArrayList<>();
@@ -80,6 +81,14 @@ public class Overview {
                 }
             }
 
+            // 全年 12 个月的总额（缺表就是 0）
+            for (int m = 1; m <= 12; m++) {
+                try (Statement st = conn.createStatement();
+                     ResultSet rs = st.executeQuery("SELECT COALESCE(SUM(price),0) FROM " + String.format("table_%02d", m))) {
+                    if (rs.next()) o.perMonth[m] = rs.getDouble(1);
+                } catch (Exception ignore) { /* 该月表不存在 */ }
+            }
+
             // 环比：上月总收入支出（表不存在就算了，不影响本月）
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery("SELECT COALESCE(SUM(price),0) FROM " + prevTable)) {
@@ -111,7 +120,13 @@ public class Overview {
             if (d > 1) b.append(',');
             b.append(Math.round(perDay[d] * 100) / 100.0);
         }
-        b.append("],\"today\":").append(Date_time.getDay())
+        b.append("],\"months\":[");
+        for (int m = 1; m <= 12; m++) {
+            if (m > 1) b.append(',');
+            b.append(Math.round(perMonth[m] * 100) / 100.0);
+        }
+        b.append("],\"month\":").append(month)
+         .append(",\"today\":").append(Date_time.getDay())
          .append(",\"daysInMonth\":").append(days)
          .append(",\"cats\":[");
         boolean first = true;

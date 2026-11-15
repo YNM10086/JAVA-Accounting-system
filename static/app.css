@@ -430,3 +430,20 @@
 .menuCard .go{position:absolute;right:14px;top:14px;font-family:var(--mono);font-size:9.5px;
   letter-spacing:.1em;color:var(--accent);opacity:0;transition:opacity .15s linear}
 .menuCard:hover .go{opacity:1}
+
+/* ========== 面板头部的分段切换 ========== */
+.phTools{display:flex;align-items:center;gap:12px;margin-left:auto}
+.seg{display:inline-flex;border:1px solid var(--line)}
+.seg button{
+  height:22px;padding:0 9px;border:0;background:transparent;cursor:pointer;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--faint);
+  transition:color .14s linear,background .14s linear;
+}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button:hover{color:var(--ink)}
+.seg button.on{color:var(--accent);background:rgba(255,138,30,.08)}
+
+/* hidden 属性优先级要盖过 .legend span{display:flex} */
+.legend span[hidden]{display:none !important}
+
+.legend em{font-style:normal}

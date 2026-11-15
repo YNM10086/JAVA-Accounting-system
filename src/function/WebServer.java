@@ -948,11 +948,15 @@ public class WebServer {
 
         // ---- 图表 ----
         sb.append("<div class='row2'>");
-        sb.append("<section class='panel'><header class='ph'><span class='label'>本月每日支出 / DAILY</span>")
-          .append("<span class='act' id='flowMeta'>日均 — · 峰值 —</span></header>")
+        sb.append("<section class='panel'><header class='ph'><span class='label' id='flowLabel'>本月每日支出 / DAILY</span>")
+          .append("<span class='phTools'><span class='act' id='flowMeta'>—</span>")
+          .append("<span class='seg' id='flowSeg' role='tablist'>")
+          .append("<button type='button' class='on' data-mode='day'>本月每日</button>")
+          .append("<button type='button' data-mode='month'>每月总额</button>")
+          .append("</span></span></header>")
           .append("<div class='chartBox'><svg id='flow' viewBox='0 0 1000 190' role='img' aria-label='30 天每日支出柱状图'></svg>")
-          .append("<div class='legend'><span><i style='background:var(--accent);height:7px'></i>每日支出 DAILY</span>")
-          .append("<span><i style='background:transparent;border-top:1px dashed rgba(200,210,230,.62)'></i>7 日均线 AVG7</span></div>")
+          .append("<div class='legend'><span id='legDaily'><i style='background:var(--accent);height:7px'></i><em id='legDailyTxt'>每日支出 DAILY</em></span>")
+          .append("<span id='legAvg'><i style='background:transparent;border-top:1px dashed rgba(200,210,230,.62)'></i>7 日均线 AVG7</span></div>")
           .append("</div></section>");
 
         sb.append("<section class='panel'><header class='ph'><span class='label'>分类结构 / BREAKDOWN</span>")
