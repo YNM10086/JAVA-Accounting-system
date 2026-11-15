@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>鲨鱼账本 · SHARK LEDGER</title>
+<style>
+  :root{
+    --ink:#f2f2f2;
+    --dim:#9a9a9a;      /* 内弧：灰色线框，不抢主体 */
+    --accent:#ff8a1e;
+    --fail:#ff3b30;     /* 自检失败：白条与文案同时转红 */
+    --bg-hex:#3f3f3f;   /* 蜂窝描边：近处由这块亮色 + 逐块 opacity 衰减共同决定 */
+  }
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  #stage{position:fixed;inset:0;background:#000;overflow:hidden}
+  #stage svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  /* 背景层：slice 铺满窗口，永远没有黑边 */
+  #bg{pointer-events:none}
+  /* 图形层：meet 保证主体不被裁 */
+  #fg{pointer-events:none}
+  .barBody{fill:var(--ink)}
+  /* 三项自检：主体下方的启动日志，四列对齐（序号 / 状态点 / 文案 / 结果） */
+  .checks text{font:9.5px/1 ui-monospace,Consolas,monospace;letter-spacing:.09em}
+  .checks .idx{fill:#6e6e6e;font-size:8px;letter-spacing:.16em}
+  .checks .st{font-size:8.5px;letter-spacing:.14em}
+  #codeLine{font-variant-numeric:tabular-nums}
+  /* 左上角信息块：放在 HTML 层（fixed），不跟 #fg 的 meet 缩放，窗口再宽也贴着角 */
+  #corner{position:fixed;left:clamp(24px,2.2vw,40px);top:clamp(20px,3.2vh,34px);
+          opacity:0;pointer-events:none;z-index:4;isolation:isolate;
+          font-family:'Cascadia Mono Light','Consolas',ui-monospace,monospace}
+  #corner .brand{font-size:clamp(26px,2.35vw,42px);line-height:1.1;
+                 letter-spacing:.05em;color:#fff;font-weight:400}
+  #corner .state{margin-top:clamp(10px,1.6vh,16px);font-size:clamp(11px,.9vw,15px);
+                 letter-spacing:.12em;color:#ff8a1e}
+  #corner .meta{margin-top:7px;font-size:clamp(9px,.74vw,12px);letter-spacing:.08em;
+                color:#ff8a1e;opacity:.62}
+  #corner .meta.faint{opacity:.46;margin-top:4px}
+  /* 代码字幕：4 行内容、3 行视窗，整体往下推就是"从上往下滚动" */
+  #codeWrap{margin-top:clamp(10px,1.6vh,16px);height:calc(3 * 1.42em);overflow:hidden;
+            font-size:clamp(8px,.65vw,11px)}
+  #cornerCode{line-height:1.42;color:#6a6a6a;white-space:pre;will-change:transform}
+  #cornerCode div{height:1.42em}
+  /* 那条暗橙扫描带：整块信息自上而下循回，压在文字后面（穿过字时像光掠过去） */
+  #scan{position:absolute;left:-6%;right:-6%;top:0;height:14px;opacity:0;z-index:-1;
+        --scan-rgb:255,138,30;
+        background:linear-gradient(to bottom,
+          rgba(var(--scan-rgb),0) 0%,rgba(var(--scan-rgb),.20) 42%,
+          rgba(var(--scan-rgb),.22) 58%,rgba(var(--scan-rgb),0) 100%)}
+  /* 右下角技术脚注：只写渲染尺寸这类元数据，和左上的品牌/版本不重复 */
+  #cornerMeta{position:fixed;right:clamp(24px,2.2vw,40px);bottom:clamp(52px,8vh,88px);
+              opacity:0;pointer-events:none;z-index:4;
+              font-family:'Cascadia Mono Light','Consolas',ui-monospace,monospace;
+              font-size:clamp(10px,.8vw,12px);letter-spacing:.2em;color:#7a7a7a;
+              text-shadow:0 0 6px rgba(0,0,0,.9), 0 0 14px rgba(0,0,0,.8)}
+  body.nolabels .checks{display:none}
+  body.nolabels #corner{display:none}
+  body.nolabels #cornerMeta{display:none}
+  body.nolabels #doneText{display:none}
+  body.nolabels #codeLine{display:none}
+
+  /* 底部通栏进度条：直角、无阴影（跟参考项目 B/web 的语言一致）
+     条带厚度 12px（原 6px 的两倍），百分比读数塞进条内、跟着进度头走 */
+  #prog{position:fixed;left:0;right:0;bottom:0;height:12px;background:#262628;opacity:0;z-index:5}
+  #progFill{position:absolute;left:0;top:0;height:100%;width:0;background:var(--accent)}
+  /* 读数：接在橙色填充末端（translateX(-100%) 让右边缘贴住进度头），与填充连成一段橙，
+     黑字落在橙上才看得清；深色轨道上的那几帧由下面的淡入延迟错开 */
+  #progPct{position:absolute;top:0;bottom:0;left:0;transform:translateX(-100%);
+           display:flex;align-items:center;padding:0 8px;background:var(--accent);
+           color:#000;font:600 11px/1 ui-monospace,Consolas,monospace;
+           letter-spacing:.14em;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:2}
+  .dbg{display:none}
+  body.debug .dbg{display:block}
+  .dbg text{fill:#6b6b6b;font:12px/1 ui-monospace,Consolas,monospace}
+  #hint{position:fixed;left:14px;bottom:12px;color:#5a5a5a;
+        font:12px/1.6 ui-monospace,Consolas,monospace;white-space:pre;z-index:10}
+  #replay{position:fixed;right:14px;bottom:12px;display:none;z-index:10;
+          background:#161616;color:#bbb;border:1px solid #333;border-radius:6px;
+          padding:6px 12px;font:12px ui-monospace,Consolas,monospace;cursor:pointer}
+  body.debug #replay{display:block}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ============ 背景层（满屏，slice） ============ -->
+  <svg id="bg" viewBox="0 0 1072 666" preserveAspectRatio="xMidYMid slice">
+    <g id="hexBg" stroke="var(--bg-hex)" fill="none" stroke-width="1.8" opacity="0">
+      <g id="hexLeft"></g>
+      <g id="hexRight" transform="translate(1072,0) scale(-1,1)"></g>
+    </g>
+  </svg>
+
+  <!-- ============ 图形层（主体，meet） ============ -->
+  <svg id="fg" viewBox="0 0 1072 666" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+        <feGaussianBlur stdDeviation="10" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- 中心主体整体上移 32，给下方留出文案空间 -->
+    <g id="hud" transform="translate(0,-32)">
+
+      <!-- 外环：起点平头，圆头 = 下面那颗小圆（图层5 的“球头”） -->
+      <path id="bandOuter" fill="none" stroke="var(--ink)" stroke-width="12" stroke-linecap="butt"/>
+
+      <!-- 内弧：同一个圆心；灰色线框（不填充），圆头在右，逆时针长出来，之后一直逆时针旋转 -->
+      <g id="innerGroup">
+        <path id="bandInner" fill="none" stroke="var(--dim)" stroke-width="4.5" stroke-linecap="butt"/>
+        <circle id="headIn" r="2.25" fill="var(--dim)" opacity="0"/>
+      </g>
+
+      <!-- 三角标识：三条白条（扁长梯形，短边朝内），水平出现在正上方 -->
+      <g id="logo">
+        <g filter="url(#glow)">
+          <polygon id="bar1" class="barBody" opacity="0"/>
+          <polygon id="bar2" class="barBody" opacity="0"/>
+          <polygon id="bar3" class="barBody" opacity="0"/>
+        </g>
+        <!-- 核心三角：本地预转 60°，使快速旋转结束时仍尖角朝上 -->
+        <g id="coreRot">
+          <polygon id="core" fill="var(--accent)" opacity="0" filter="url(#softGlow)"/>
+        </g>
+      </g>
+
+      <!-- 起点：小白圆（内橙外白） -->
+      <g id="dot">
+        <circle id="dotOuter" cx="519.7" cy="468" r="0" fill="none" stroke="var(--ink)" stroke-width="5"/>
+        <circle id="dotCore" cx="519.7" cy="468" r="0" fill="var(--accent)"/>
+      </g>
+    </g>
+
+    <!-- 三项自检：三条白条各自对应一项；白条亮起 = 通过（白），失败转红（?fail=1/2/3 演示）
+         四列对齐：序号 / 状态点 / 文案 / 结果词 -->
+    <g id="checks" class="checks">
+      <g id="row1" opacity="0">
+        <text class="idx" x="470" y="563" text-anchor="end">01</text>
+        <rect id="dot1" x="482" y="557" width="5" height="5" fill="var(--dim)"/>
+        <text id="chk1" x="494" y="563" fill="var(--dim)">程序运行成功</text>
+        <text id="st1" class="st" x="600" y="563" fill="var(--dim)">--</text>
+      </g>
+      <g id="row2" opacity="0">
+        <text class="idx" x="470" y="582" text-anchor="end">02</text>
+        <rect id="dot2" x="482" y="576" width="5" height="5" fill="var(--dim)"/>
+        <text id="chk2" x="494" y="582" fill="var(--dim)">数据库连接成功</text>
+        <text id="st2" class="st" x="600" y="582" fill="var(--dim)">--</text>
+      </g>
+      <g id="row3" opacity="0">
+        <text class="idx" x="470" y="601" text-anchor="end">03</text>
+        <rect id="dot3" x="482" y="595" width="5" height="5" fill="var(--dim)"/>
+        <text id="chk3" x="494" y="601" fill="var(--dim)">本地 AI 连接成功</text>
+        <text id="st3" class="st" x="600" y="601" fill="var(--dim)">--</text>
+      </g>
+    </g>
+
+    <!-- 三项全部通过后，三行日志收成这一行大字，占掉原来三行的位置 -->
+    <text id="doneText" x="538" y="590" text-anchor="middle" opacity="0" fill="#ffffff"
+          style="font:400 22px/1 'Cascadia Mono Light','Consolas',ui-monospace,monospace;letter-spacing:.16em">SELF-CHECK PASSED</text>
+
+    <!-- 自检文字下面一行快速滚动的代码（等宽，整体居中） -->
+    <text id="codeLine" x="536" y="626" fill="#8d8d8d" opacity="0" text-anchor="middle"
+          style="font:8.5px/1 ui-monospace,Consolas,monospace;letter-spacing:.02em">.</text>
+  </svg>
+
+  <!-- 左上角信息块：品牌 / 总状态 / 环境指纹 / 滚动代码字幕
+       放在 fixed 层而不是 #fg 里，否则跟着 meet 缩放，宽屏上会被拉到画面中部 -->
+  <div id="corner">
+    <div class="brand">BOOKKEEPING<br>SYSTEM</div>
+    <div id="cornerState" class="state">LOADING…</div>
+    <div class="meta">JAVA 17 · MYSQL · LOCAL AI</div>
+    <div class="meta faint">v3.0.0 · BUILD 2026.11.15</div>
+    <div id="codeWrap">
+      <div id="cornerCode"><div></div><div></div><div></div><div></div></div>
+    </div>
+    <div id="scan"></div>
+  </div>
+
+  <!-- 右下角只留版本号，右上全靠蜂窝衰减留白 -->
+  <div id="cornerMeta">v3.0.0</div>
+
+  <!-- 底部通栏进度条：铺满窗口宽度，百分比跟着进度头一起走 -->
+  <div id="prog">
+    <div id="progFill"></div>
+    <div id="progPct">0%</div>
+  </div>
+</div>
+
+<div id="hint" class="dbg"></div>
+<button id="replay" class="dbg">重播</button>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- 几何（单位 = CAD 帧单位 ×10，画布 1072×666） ----------
+  const C = { x: 536.0, y: 329.6 };   // 大小圆弧共用圆心
+
+  const P = {
+    ring:     { r: 249.0, w: 12 },
+    inner:    { r: 186.8, w: 4.5 },
+    arc:      { from: 215.7, to: -31.9 },  // 外环：左下（平头）→ 顶部 → 右下（圆头）
+    innerArc: { from: 328.1, sweep: 247.6 }, // 内弧：起于外环圆头（右下 328.1），同向长到外环平头（215.7），开口与外环一起朝正下方
+    innerSpin: 0.026,                      // 内弧长完后的逆时针自转（度/毫秒，≈26°/s）；只管生长时开口朝下，转起来之后方向不追究
+    logo:     { cx: 536.0, cy: 329.6 },
+    // 白条 = 扁长梯形：内边（短、朝圆心）距圆心 38、外边（长）距圆心 48，厚度 10
+    // 比例参照 CAD：厚 ≈ 1.0、外边 ≈ 13.3、内边 ≈ 9.9（×10）
+    bar:      { rIn: 38, rOut: 48, lenIn: 100, lenOut: 124 },
+    hudShift: -32,                          // 主体整体上移量
+    // 小圆（起点 → 圆头）：起点 r14/芯7；当笔尖画弧时缩到 r9.5/芯5（白圈外径 24 = 弧宽的 2 倍）
+    dot:      { x: 519.7, y: 468, r0: 14, r1: 9.5, core0: 7, core1: 5, inset: 8 },
+  };
+
+  // ---------- 时间轴（毫秒；经验值，集中在 T / ROT） ----------
+  const T = {
+    blackEnd:  800,
+    dotPop:    [800, 1750],
+    coreIn:    [1450, 2050],
+    travel:    [2050, 2750],
+    sweepOut:  [2750, 4400],
+    sweepIn:   [4500, 5650],       // 外环长完 → 内弧从右侧圆头开始逆时针长
+    coreLight: [5850, 6350],       // 核心三角先出现（倒三角），再亮第一条白条
+    bar1:      [6600, 6950],
+    rot1:      [7300, 8000],
+    bar2:      [8100, 8450],
+    rot2:      [8750, 9450],
+    bar3:      [9550, 9900],
+    spin:      [10300, 12200],
+    end:       12200,
+  };
+
+  // 白条水平出现时都在正上方：每次逆时针 120°，三条齐了 = 倒三角；
+  // 最后快速转 2.5 圈，停在尖角朝上（−240° 再翻 180°）
+  const ROT = { bar1: 0, bar2: -120, bar3: -240, final: -1140 };
+
+  // ---------- 三项自检（与三条白条一一对应） ----------
+  const CHECKS = [
+    { at: T.bar1, ok: "程序运行成功",     bad: "程序启动失败" },
+    { at: T.bar2, ok: "数据库连接成功",   bad: "数据库连接失败" },
+    { at: T.bar3, ok: "本地 AI 连接成功", bad: "本地 AI 连接失败" },
+  ];
+  // ?fail=1,3 指定哪几项失败（编号 1 起，不传 = 全部通过）
+  const failSet = new Set(
+    (new URLSearchParams(location.search).get("fail") || "")
+      .split(",").map(s => parseInt(s, 10)).filter(n => n >= 1 && n <= 3)
+  );
+
+  // 自检下面那行“跑动的代码”：把一段代码当环形缓冲，每 70ms 左移两格，
+  // 28% 的字符换成乱码——读得出轮廓，但一直在变
+  const CODE_SRC =
+    "while (offset < total) { offset = read(buf); } // table_11 rows.map(r => r.price)";
+  const CODE_SIG = "01{}[]()<>/\\=+-*&|!?;:._$#@%^~";
+  let codeTick = -1, codeText = "";
+  function codeFlow(tms) {
+    const tick = Math.floor(tms / 70);
+    if (tick === codeTick) return codeText;
+    codeTick = tick;
+    let s = "";
+    for (let i = 0; i < 44; i++) {
+      const ch = CODE_SRC[(i + tick * 2) % CODE_SRC.length];
+      const h = (tick * 1103515245 + i * 12345) & 0x7fffffff;
+      s += (ch === " " || h % 100 >= 14) ? ch : CODE_SIG[h % CODE_SIG.length];
+    }
+    codeText = s;
+    return s;
+  }
+
+  // 左上角那几行滚动代码：每行独立相位，横向左移 + 少量乱码
+  function codeRows(tms, rows, seed) {
+    const tick = Math.floor(tms / 70);
+    const out = [];
+    for (let r = 0; r < rows; r++) {
+      let s = "";
+      for (let i = 0; i < 30; i++) {
+        const ch = CODE_SRC[(i + tick * (1 + r) + seed * 13) % CODE_SRC.length];
+        const h = (tick * 1103515245 + i * 12345 + r * 977 + seed * 31) & 0x7fffffff;
+        s += (ch === " " || h % 100 >= 12) ? ch : CODE_SIG[h % CODE_SIG.length];
+      }
+      out.push(s);
+    }
+    return out;
+  }
+
+  // ---------- 小工具 ----------
+  const RAD = Math.PI / 180;
+  const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const seg = (t, a, b) => clamp01((t - a) / (b - a));
+  const easeOutCubic = p => 1 - Math.pow(1 - p, 3);
+  const easeOutQuint = p => 1 - Math.pow(1 - p, 5);
+  const easeInOut = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+  function snap(p) {                     // 机械卡位：快速到位，末尾轻微回弹
+    const s = 0.55, q = p - 1;
+    return 1 + (s + 1) * q * q * q + s * q * q;
+  }
+  function spring(p) {                   // Q 弹
+    if (p <= 0) return 0;
+    if (p >= 1) return 1;
+    return 1 - Math.exp(-6.5 * p) * Math.cos(9.2 * p);
+  }
+  const pt = (cx, cy, r, deg) => [cx + r * Math.cos(deg * RAD), cy - r * Math.sin(deg * RAD)];
+
+  function arcPath(cx, cy, r, a0, a1, steps = 160) {
+    let d = "";
+    for (let i = 0; i <= steps; i++) {
+      const [x, y] = pt(cx, cy, r, a0 + (a1 - a0) * i / steps);
+      d += (i ? "L" : "M") + x.toFixed(2) + " " + y.toFixed(2);
+    }
+    return d;
+  }
+
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = id => document.getElementById(id);
+
+  // ---------- 背景：六边形平行排列（彼此留缝、错位），贴左右两边 ----------
+  // CAD 实测 ×0.75：边长 37.5、列距 72.75、行距 65.25、隔行横移半格
+  // 背景层用 slice 铺满窗口，所以六边形压在画布边缘外被切掉也没关系
+  // x0 = −41：保证从窗口中缝里“切进来”的是完整一列的左半边，窗口边缘不会留直边空带
+  const HEX = { s: 37.5, dx: 72.75, dy: 65.25, cols: 4, rows: 13, x0: -41, y0: -58 };
+
+  function hexPoints(cx, cy, s) {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (60 * i - 90) * RAD;
+      pts.push([cx + s * Math.cos(a), cy + s * Math.sin(a)]);
+    }
+    return pts;
+  }
+
+  // 背景蜂窝：逐块按到“灯泡”（主体中心）的距离衰减——近处亮，远处几乎溶进黑
+  function buildPanel(group, mirrored) {
+    for (let r = 0; r < HEX.rows; r++) {
+      for (let c = 0; c < HEX.cols; c++) {
+        const hx = HEX.x0 + c * HEX.dx + (r % 2 ? HEX.dx / 2 : 0);
+        const hy = HEX.y0 + r * HEX.dy;
+        const sx = mirrored ? 1072 - hx : hx;      // 右侧面板整体镜像过，换算回屏幕坐标
+        const sy = hy;
+        const dist = Math.hypot(sx - P.logo.cx, sy - (P.logo.cy + P.hudShift));
+        // 指数衰减：近处接近满亮，两三个格子之外迅速溶进黑
+        const op = 0.98 * Math.exp(-Math.max(0, dist - 240) / 270);
+
+        const p = hexPoints(hx, hy, HEX.s);
+        const path = document.createElementNS(NS, "path");
+        path.setAttribute("d",
+          "M" + p.map(v => v[0].toFixed(1) + " " + v[1].toFixed(1)).join("L") + "Z");
+        path.setAttribute("opacity", op.toFixed(3));
+        group.appendChild(path);
+      }
+    }
+  }
+
+  // ---------- 静态几何 ----------
+  const rotateAbout = (x, y, cx, cy, deg) => {
+    const a = deg * RAD, dx = x - cx, dy = y - cy;
+    return [cx + dx * Math.cos(a) - dy * Math.sin(a),
+            cy + dx * Math.sin(a) + dy * Math.cos(a)];
+  };
+
+  // 梯形白条：内边（短、朝圆心）+ 外边（长），再绕圆心转 0/120/240
+  function barPoints(deg) {
+    const { cx, cy } = P.logo, B = P.bar;
+    const poly = [
+      [cx - B.lenIn / 2,  cy - B.rIn],    // 内左
+      [cx + B.lenIn / 2,  cy - B.rIn],    // 内右
+      [cx + B.lenOut / 2, cy - B.rOut],   // 外右
+      [cx - B.lenOut / 2, cy - B.rOut],   // 外左
+    ].map(([x, y]) => rotateAbout(x, y, cx, cy, deg));
+    return poly.map(p => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(" ");
+  }
+
+  [0, 120, 240].forEach((off, i) => {
+    $("bar" + (i + 1)).setAttribute("points", barPoints(off));
+  });
+
+  // 核心小三角（等边，重心在圆心）
+  const coreH = 30, coreW = 34.7;
+  $("core").setAttribute("points", [
+    [P.logo.cx, P.logo.cy - coreH * 2 / 3],
+    [P.logo.cx - coreW / 2, P.logo.cy + coreH / 3],
+    [P.logo.cx + coreW / 2, P.logo.cy + coreH / 3],
+  ].map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" "));
+  $("coreRot").setAttribute("transform", `rotate(60 ${P.logo.cx} ${P.logo.cy})`);
+
+  buildPanel($("hexLeft"));
+  buildPanel($("hexRight"), true);
+
+  const logo = $("logo"), innerGroup = $("innerGroup");
+  const bandOuter = $("bandOuter");
+  const progEl = $("prog"), progFillEl = $("progFill"), progPctEl = $("progPct");
+  const bandInner = $("bandInner"), headIn = $("headIn");
+
+  // ---------- 渲染某一时刻 ----------
+  function render(t) {
+    document.body.dataset.t = t.toFixed(0);
+
+    // 收尾：最后一圈转完（T.end）后，主体轻微放大再缩回（不发光）
+    const pulse = 1 + 0.055 * Math.sin(Math.PI * clamp01((t - T.spin[1]) / 560));
+
+    // 背景：圆出现之后浮出来（起始帧是纯黑）
+    $("hexBg").setAttribute("opacity", (0.92 * easeOutCubic(seg(t, 900, 2500))).toFixed(3));
+
+    // 1. 小白圆 → 双层 → 左移到外环起点 → **跟着弧的头部走**，边走边把弧带出来
+    //    （图层5 的圆头示意图：球径 10 / 带子宽 4，球心就是带子的末端）
+    const pop = spring(seg(t, T.dotPop[0], T.dotPop[1]));
+    const travel = easeInOut(seg(t, T.travel[0], T.travel[1]));
+    const shown = t >= T.dotPop[0] ? 1 : 0;
+
+    const pOut = easeInOut(seg(t, T.sweepOut[0], T.sweepOut[1]));
+    const angOut = lerp(P.arc.from, P.arc.to, pOut);
+
+    // 圆头 = 小圆本身。开始画弧时缩到更小的球头；位置取"弧头再往前 inset"，
+    // 这样弧的端面落在白圆环的环体里（距球心 8~10，环体 7~12），既被白圆盖住、
+    // 也不会伸进白圆和橙圆之间的空隙 —— 弧只和白圆接触。
+    const headT = easeInOut(seg(t, T.sweepOut[0], T.sweepOut[0] + 320));
+    const insetDeg = P.dot.inset / P.ring.r * 180 / Math.PI;
+    const [hx, hy] = pt(C.x, C.y, P.ring.r, angOut - insetDeg);
+
+    const dotX = lerp(P.dot.x, hx, travel);
+    const dotY = lerp(P.dot.y, hy, travel);
+    const dotR = lerp(P.dot.r0, P.dot.r1, headT);
+    const coreR = lerp(P.dot.core0, P.dot.core1, headT);
+
+    $("dotOuter").setAttribute("cx", dotX.toFixed(2));
+    $("dotOuter").setAttribute("cy", dotY.toFixed(2));
+    $("dotOuter").setAttribute("r", Math.max(0, dotR * pop).toFixed(2));
+    $("dotOuter").setAttribute("opacity", shown.toFixed(3));
+
+    $("dotCore").setAttribute("cx", dotX.toFixed(2));
+    $("dotCore").setAttribute("cy", dotY.toFixed(2));
+    $("dotCore").setAttribute("r", Math.max(0, coreR * pop).toFixed(2));
+    $("dotCore").setAttribute("opacity",
+      (shown * easeOutCubic(seg(t, T.coreIn[0], T.coreIn[1]))).toFixed(3));
+
+    // 2. 外环：起点平头，头部由那颗小圆顶着（圆头 = 小圆本身）；长完停住，小圆停在另一端
+    bandOuter.setAttribute("d", arcPath(C.x, C.y, P.ring.r, P.arc.from, angOut));
+
+    // 3. 内弧：圆头在右，逆时针长；长完继续逆时针自转
+    const pIn = easeInOut(seg(t, T.sweepIn[0], T.sweepIn[1]));
+    const angIn = P.innerArc.from + P.innerArc.sweep * pIn;
+    bandInner.setAttribute("d", arcPath(C.x, C.y, P.inner.r, P.innerArc.from, angIn));
+    const [hix, hiy] = pt(C.x, C.y, P.inner.r, angIn);
+    headIn.setAttribute("cx", hix.toFixed(2));
+    headIn.setAttribute("cy", hiy.toFixed(2));
+    headIn.setAttribute("opacity", pIn > 0.002 ? 1 : 0);
+
+    // 长完之后一直逆时针自转（开口方向不再追究，生长阶段才要求与外环同向）
+    const spin = t > T.sweepIn[1] ? -(t - T.sweepIn[1]) * P.innerSpin : 0;
+    innerGroup.setAttribute("transform", `rotate(${spin.toFixed(2)} ${C.x} ${C.y})`);
+
+    // 4. 三角组：白条水平出现在正上方 → 停顿 → 机械式逆时针卡位
+    let rot;
+    if (t < T.rot1[0]) rot = ROT.bar1;
+    else if (t < T.rot2[0]) rot = lerp(ROT.bar1, ROT.bar2, snap(seg(t, T.rot1[0], T.rot1[1])));
+    else if (t < T.spin[0]) rot = lerp(ROT.bar2, ROT.bar3, snap(seg(t, T.rot2[0], T.rot2[1])));
+    else rot = lerp(ROT.bar3, ROT.final, easeOutQuint(seg(t, T.spin[0], T.spin[1])));
+    // 以圆心为基准叠一个轻微的缩放脉冲（放大 5.5% 再回 1）
+    logo.setAttribute("transform",
+      `rotate(${rot.toFixed(2)} ${P.logo.cx} ${P.logo.cy}) ` +
+      `translate(${P.logo.cx} ${P.logo.cy}) scale(${pulse.toFixed(4)}) ` +
+      `translate(${-P.logo.cx} ${-P.logo.cy})`);
+
+    // 5. 白条依次亮起：只有本体淡入，不发光
+    [T.bar1, T.bar2, T.bar3].forEach((w, i) => {
+      const p = seg(t, w[0], w[1]);
+      $("bar" + (i + 1)).setAttribute("opacity", easeOutCubic(p).toFixed(3));
+    });
+
+    // 6. 核心三角：在第一条白条之前先出现（此时是倒三角，和稍后的 ∇ 一致），之后一直呼吸
+    const lit = easeOutCubic(seg(t, T.coreLight[0], T.coreLight[1]));
+    const ph = Math.max(0, t - T.coreLight[1]) / 900 * Math.PI * 2;
+    const breath = t > T.coreLight[1] ? 0.72 + 0.28 * Math.sin(ph) : 1;
+    $("core").setAttribute("opacity", (lit * breath).toFixed(3));
+    const enter = 0.70 + 0.30 * easeOutCubic(seg(t, T.coreLight[0], T.coreLight[1] + 260));
+    const pulsing = t > T.coreLight[1] ? 1 + 0.045 * Math.sin(ph) : 1;
+    const cs = enter * pulsing;
+    $("core").setAttribute("transform",
+      `translate(${P.logo.cx} ${P.logo.cy}) scale(${cs}) translate(${-P.logo.cx} ${-P.logo.cy})`);
+
+    // 7. 底部通栏进度条：铺满窗口宽度，百分比数字跟着进度头移动
+    const prog = clamp01((t - 900) / (T.end - 900));
+    const progOp = easeOutCubic(seg(t, 700, 1700));
+    progEl.style.opacity = progOp.toFixed(3);
+    progFillEl.style.width = (prog * 100).toFixed(3) + "%";
+    const vw = window.innerWidth || 1440;
+    // 读数块右边缘贴进度头（CSS 里 translateX(-100%)），所以左端只需夹住块自身宽度
+    const lblW = 52;
+    const px = Math.min(Math.max(prog * vw, lblW), vw);
+    progPctEl.style.left = px.toFixed(1) + "px";
+    progPctEl.textContent = Math.round(prog * 100) + "%";
+
+    // 8. 三项自检：第 i 条白条亮起 = 第 i 项通过；失败项转红、文案改成“…失败”
+    for (let i = 0; i < 3; i++) {
+      const w = T["bar" + (i + 1)];
+      const on = t >= w[0];
+      const bad = failSet.has(i + 1);
+      const row = $("row" + (i + 1));
+      const txt = $("chk" + (i + 1));
+      const dot = $("dot" + (i + 1));
+      const st = $("st" + (i + 1));
+
+      // 每行单独入场：从下往上 5 单位，三行错开 130ms
+      const inP = easeOutCubic(seg(t, T.dotPop[1] + i * 130, T.dotPop[1] + i * 130 + 700));
+      row.setAttribute("transform", `translate(0 ${(5 * (1 - inP)).toFixed(2)})`);
+
+      txt.textContent = on && bad ? CHECKS[i].bad : CHECKS[i].ok;
+
+      let op = inP;
+      if (on) {
+        // 亮起那一瞬只压亮度，不做缩放
+        op *= 1 - 0.30 * Math.sin(Math.PI * clamp01((t - w[0]) / 300));
+      } else {
+        op *= 0.55 + 0.10 * Math.sin(t / 260 + i * 2);      // 待检：轻微呼吸
+      }
+      row.setAttribute("opacity", op.toFixed(3));
+
+      if (on) {
+        const col = bad ? "var(--fail)" : "var(--ink)";
+        txt.setAttribute("fill", col);
+        dot.setAttribute("fill", col);
+        st.textContent = bad ? "FAIL" : "OK";
+        st.setAttribute("fill", bad ? "var(--fail)" : "#8f8f8f");
+      } else {
+        txt.setAttribute("fill", "var(--dim)");
+        dot.setAttribute("fill", "var(--dim)");
+        st.textContent = "--";
+        st.setAttribute("fill", "#4a4a4a");
+      }
+    }
+
+    // 8.5 全部通过就把三行收成一行大字；有任何一项失败则保持三行
+    const okAll = failSet.size === 0;
+    const collapse = okAll ? easeOutCubic(seg(t, T.bar3[0] + 140, T.bar3[0] + 520)) : 0;
+    $("checks").setAttribute("opacity", (1 - collapse).toFixed(3));
+
+    // 出现就闪：180ms 内亮满，紧接着 360ms 走两个深谷（只压亮度，不加光）
+    const doneIn = easeOutCubic(seg(t, T.bar3[0] + 300, T.bar3[0] + 480));
+    const doneEl = $("doneText");
+    let blink = 1;
+    const bt = t - (T.bar3[0] + 400);
+    if (bt >= 0 && bt <= 360) blink = 0.3 + 0.7 * Math.abs(Math.cos((bt / 90) * Math.PI));
+    doneEl.setAttribute("opacity", (okAll ? doneIn * blink : 0).toFixed(3));
+    doneEl.setAttribute("transform", `translate(0 ${(5 * (1 - doneIn)).toFixed(2)})`);
+
+    // 8.6 左上角信息块：常驻占位（不淡出）。只报"总状态"，逐项明细交给底部自检，避免重复
+    $("corner").style.opacity = (0.95 * easeOutCubic(seg(t, 900, 1900))).toFixed(3);
+    $("cornerMeta").style.opacity = (0.9 * easeOutCubic(seg(t, 1100, 2100))).toFixed(3);
+    const bootDone = t >= T.bar3[0] + 260;
+    const failN = failSet.size;
+    const stEl = $("cornerState");
+    if (bootDone && failN) {
+      stEl.textContent = "FAILED";
+      stEl.style.color = "#ff3b30";
+    } else if (bootDone) {
+      stEl.textContent = "COMPLETE";
+      stEl.style.color = "#4ade80";
+    } else {
+      stEl.textContent = "LOADING…";
+      stEl.style.color = "#ff8a1e";
+    }
+
+    // 代码字幕：每 340ms 推进一行，整体向下滑一行 → 读起来是从上往下滚
+    const cEls = [...$("cornerCode").children];
+    const PERIOD = 340;
+    const cycle = Math.floor(t / PERIOD);
+    const phase = (t % PERIOD) / PERIOD;
+    if (bootDone && failN) {
+      // 报错版本：停滚，摆三条错误现场
+      const firstFail = [...failSet][0];
+      const errLine = {
+        "1": "[ERR] app: bootstrap failed",
+        "2": "[ERR] mysql: connect refused 3306",
+        "3": "[ERR] local-ai: endpoint unreachable",
+      }[String(firstFail)] || "[ERR] unknown";
+      const lines = [errLine, `[WARN] ${failN} / 3 checks failed`, "retry scheduled in 5s"];
+      cEls[0].style.color = "#ff3b30";
+      for (let i = 0; i < cEls.length; i++) {
+        if (i > 0) cEls[i].style.color = "#6a6a6a";
+        const v = lines[i] || "";
+        if (cEls[i].textContent !== v) cEls[i].textContent = v;
+      }
+      $("cornerCode").style.transform = "none";
+    } else {
+      const rows = codeRows(cycle * PERIOD, cEls.length, 3);
+      for (let i = 0; i < cEls.length; i++) {
+        if (cEls[i].style.color) cEls[i].style.color = "";
+        if (cEls[i].textContent !== rows[i]) cEls[i].textContent = rows[i];
+      }
+      $("cornerCode").style.transform = `translateY(${(-25 * (1 - phase)).toFixed(2)}%)`;
+    }
+
+    // 暗橙扫描线：整块信息自上而下，2.6s 一轮
+    const scanEl = $("scan");
+    const scPhase = (t % 2600) / 2600;
+    scanEl.style.opacity = (easeOutCubic(seg(t, 900, 1900)) * 0.95).toFixed(3);
+    scanEl.style.top = (scPhase * 100).toFixed(2) + "%";
+    document.getElementById("corner").style.setProperty("--scan-rgb", failN && bootDone ? "255,59,48" : "255,138,30");
+
+    // 9. 自检下方那行跑动的代码
+    const codeIn = easeOutCubic(seg(t, T.dotPop[1] + 300, T.dotPop[1] + 1500));
+    const codeEl = $("codeLine");
+    codeEl.setAttribute("opacity", (0.72 * codeIn).toFixed(3));
+    codeEl.textContent = codeFlow(t);
+
+    $("hint").textContent =
+      `t = ${(t / 1000).toFixed(2)}s / ${(T.end / 1000).toFixed(2)}s\n` +
+      `外环 ${(pOut * 100) | 0}%  内弧 ${(pIn * 100) | 0}%  旋转 ${rot.toFixed(1)}°  内弧自转 ${spin.toFixed(0)}°`;
+  }
+
+  // ---------- 播放 ----------
+  const params = new URLSearchParams(location.search);
+  if (params.has("debug")) document.body.classList.add("debug");
+  if (params.has("nolabels")) document.body.classList.add("nolabels");
+
+  // 失败的那几条白条直接转红（CSS 类 .barBody 的 fill 会压住 presentation attribute，必须写 style）
+  function applyFail() {
+    [1, 2, 3].forEach(i => {
+      $("bar" + i).style.fill = failSet.has(i) ? "var(--fail)" : "";
+    });
+  }
+  applyFail();
+
+  let start = 0, raf = 0;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const fixed = params.get("t");
+
+  function loop(now) {
+    if (!start) start = now;
+    render(now - start);           // 结束后其余段落自动停在终态，内弧继续转
+    raf = requestAnimationFrame(loop);
+  }
+
+  function play() {
+    cancelAnimationFrame(raf);
+    start = 0;
+    raf = requestAnimationFrame(loop);
+  }
+
+  $("replay").addEventListener("click", play);
+
+  // 键盘：R 重播 / F 轮换失败演示（0→1→2→3）/ D 时间码面板
+  window.addEventListener("keydown", e => {
+    const k = e.key.toLowerCase();
+    if (k === "r" || k === " ") { e.preventDefault(); play(); }
+    else if (k === "f") {
+      const cur = failSet.size ? [...failSet][0] : 0;
+      failSet.clear();
+      const next = (cur + 1) % 4;
+      if (next) failSet.add(next);
+      applyFail();
+      play();
+    }
+    else if (k === "d") { document.body.classList.toggle("debug"); }
+  });
+
+  if (fixed !== null) { render(parseFloat(fixed) * 1000); }
+  else if (reduced) { render(T.end); }
+  else { play(); }
+
+  window.__splash = { render, T, P, ROT, HEX, C };
+})();
+</script>
+<style>
+  #enterHint{
+    position:fixed;right:26px;bottom:20px;z-index:50;
+    font-family:"JetBrains Mono",Consolas,monospace;font-size:9.5px;letter-spacing:.18em;
+    color:rgba(233,237,246,.42);opacity:0;transition:opacity .7s linear;pointer-events:none;
+  }
+  #enterHint.on{opacity:1}
+  #enterHint b{color:rgba(255,138,30,.8);font-weight:400}
+</style>
+<div id="enterHint"><b>SKIP</b> · 点击任意处进入</div>
+<script>
+(function () {
+  var gone = false;
+  function enter() {
+    if (gone) return;
+    gone = true;
+    document.documentElement.classList.add("leave");
+    location.href = "/splash-done";
+  }
+  var T = (window.__splash && window.__splash.T && window.__splash.T.end) || 12000;
+  setTimeout(function () {
+    var h = document.getElementById("enterHint");
+    if (h) h.classList.add("on");
+  }, 1400);
+  setTimeout(enter, T + 700);
+  window.addEventListener("pointerdown", enter, { passive: true });
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === "Escape") enter();
+  });
+})();
+</script></body>
+</html>

@@ -66,7 +66,7 @@ public class WebServer {
         try {
             switch (path) {
                 case "/"             -> {
-                    if (splashPending) html(ex, splashPage());
+                    if (splashPending) serveSplash(ex);
                     else redirect(ex, "/main");
                 }
                 case "/splash-done"  -> { splashPending = false; redirect(ex, "/main"); }
@@ -841,6 +841,20 @@ public class WebServer {
 
     // ==================== HTML 页面组装 ====================
 
+    /** 新开屏：static/splash.html（纯静态，动画在页面里）；缺失时退回旧内联开屏 */
+    private static void serveSplash(HttpExchange ex) throws IOException {
+        java.io.File f = new java.io.File("static/splash.html");
+        if (f.exists()) {
+            byte[] bytes = Files.readAllBytes(f.toPath());
+            ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+            ex.getResponseHeaders().set("Cache-Control", "no-store");
+            ex.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
+            return;
+        }
+        html(ex, splashPage());
+    }
+
     private static String splashPage() {
         return "<!DOCTYPE html><html lang='zh'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>" +
             "<title>消费记录系统</title><style>" +
@@ -1417,7 +1431,7 @@ public class WebServer {
     private static String shellStatus() {
         return "<footer class='statusbar'>" +
             "<span class='live'><i></i>账本已同步</span><span>LEDGER SYNCHRONISED</span>" +
-            "<div class='mid'><span><kbd>F2</kbd> 记一笔</span><span><kbd>K</kbd> 搜索</span><span><kbd>ESC</kbd> 返回</span></div>" +
+            "<div class='mid'><span><kbd>F2</kbd> 记一笔</span><span><kbd>K</kbd> 唤 AI</span><span><kbd>ESC</kbd> 返回</span></div>" +
             "<div class='barcode' id='barcode' aria-hidden='true'></div>" +
             "</footer>";
     }

@@ -289,7 +289,12 @@
       ta.addEventListener("input", touch);
     }
 
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (open) { closePanel(); return; }
+      const view = document.querySelector(".view");
+      if (view && view.scrollTop > 0) view.scrollTo({ top: 0, behavior: "smooth" });
+    });
     document.addEventListener("pointerdown", (e) => {
       if (!open) return;
       if (panel.contains(e.target) || orb.contains(e.target)) return;
@@ -371,9 +376,20 @@
       }
     }
 
-    // 键盘：F2 记一笔、K 搜索（先只做 F2）
+    // 键盘：F2 去记一笔、K 唤 AI、Esc 回顶部（在 AI 面板里 Esc 先关面板）
     document.addEventListener("keydown", (e) => {
-      if (e.key === "F2") { e.preventDefault(); location.href = "/save"; }
+      const tag = (e.target && e.target.tagName) || "";
+      const typing = /INPUT|TEXTAREA|SELECT/.test(tag);
+      if (e.key === "F2") {
+        e.preventDefault();
+        const t = document.getElementById("entry");
+        if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => { const g = document.querySelector("#entry input[name='goods']"); if (g) g.focus(); }, 420);
+      } else if ((e.key === "k" || e.key === "K") && !typing && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const orb = document.getElementById("aiOrb");
+        if (orb) orb.click();
+      }
     });
 
     // ?t=秒：把进场动画定格（截图对比用）
