@@ -105,17 +105,24 @@
 
 ---
 
-### Task 6: 业务页逐个换（换一页删一页）
+### Task 6: 改成单页滚动：一块屏装全部功能（2026-11-15 用户定）
 
 **Files:**
 - Modify: `src/function/WebServer.java`（`savePage`/`incomePage`/`queryPage`/`budgetPage`、路由）
 - Delete: 对应旧方法 + `css()` 里对应段落
 
-- [ ] 记一笔 `/save`：商品 / 价格 / 分类（6 项）/ 日常·特殊 / 月份 / 日期，落库字段与现在完全一致 + `cat`。
-- [ ] 收入 `/income`：月份 / 日期 / 金额 / 说明 + 本月收入列表。
-- [ ] 明细 `/query`：月度统计、日均、30 天柱（前端 SVG 取代 `/chart-img` PNG）、按日明细（可删）、特殊消费、导出按钮。
-- [ ] 预算 `/budget`：已用 / 剩余 / 每日可用 / 概率评估，进度条用新样式，预算 1500。
-- [ ] 设置 `/settings`（新建）：预算额、AI 模型显示（只读即可）、数据库状态；先落只读展示，写操作留接口。
+全部功能落在 `/main` 一页，左栏 = 锚点导航（scrollspy），鼠标滚轮浏览：
+
+- [ ] `#overview` 总览（已完成 Task 5）：KPI / 30 天柱 / 双环 / 最近流水。
+- [ ] `#entry` 记一笔：商品 / 价格 / 类别（10 选 1）/ 日常·特殊 / 月份 / 日期，落库字段与现在一致 + `cat`。
+- [ ] `#income` 收入：月份 / 日期 / 金额 / 说明 + 本月收入列表。
+- [ ] `#details` 明细：月度统计、日均、按日明细（可删）、特殊消费；长表用「表内滚动 + 每页 20 条」，不吃整页高度。
+- [ ] `#budget` 预算：已用 / 剩余 / 每日可用 / 概率评估，预算 1500。
+- [ ] `#settings` 设置：预算额、AI 模型状态、数据库状态；先只读。
+- [ ] 锚点与跳转：左栏 `href="/main#entry"`，顶栏/左栏 sticky，`scroll-margin-top` 给顶栏留位；
+      表单 POST 后 `302 → /main#<section>`（不依赖 JS，F2 等旧入口仍可用）；旧路由 `/save`、`/query`、`/budget`、`/income` 全部 302 到对应锚点。
+- [ ] scrollspy：`IntersectionObserver` 高亮当前 section，点击导航平滑滚动（`prefers-reduced-motion` 时直接跳）。
+- [ ] 导出不进锚点：`/export` 仍是直接下载，导航项单独处理（不高亮、不占 section）。
 
 **验收:** 每页 Playwright 脚本：进页面 → 提交一条 → 回列表能看到 → 删除生效；截图归档 `design_tmp/shots/`。
 

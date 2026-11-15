@@ -901,36 +901,108 @@ public class WebServer {
 
 
     private static String mainPage() {
-        String t = getMonthTable();
-        StringBuilder sb = new StringBuilder();
-        sb.append("<div class='pagehead'><div>");
-        sb.append("<h1>总览</h1>");
-        sb.append("<div class='sub'><span class='bar'></span><span>OVERVIEW / ").append(t)
-          .append(" / 本月累计</span></div>");
-        sb.append("</div><div class='headtool'>");
-        sb.append("<a class='btn' href='/query'>看明细</a>");
-        sb.append("<a class='btn solid' href='/save'>+ 记一笔</a>");
-        sb.append("</div></div>");
+        Overview ov = Overview.load();
+        String ymd = Date_time.getYear() + "-" + String.format("%02d", ov.month);
+        String table = String.format("table_%02d", ov.month);
+        double balance = ov.income - ov.expense;
+        double used = Overview.BUDGET <= 0 ? 0 : ov.expense / Overview.BUDGET;
+        double avg = ov.count > 0 ? ov.expense / Math.max(1, Date_time.getDay()) : 0;
 
-        // P0 试点：旧的四个人口原样保留，只是换成新壳的样式；P1 起这块换成真总览
-        String[][] cards = {
-            {"/income", "01", "进账设置", "设置当月收入，消费管控以此为据"},
-            {"/save",   "02", "存入消费", "记一笔日常或特殊消费，按日期入当月表"},
-            {"/query",  "03", "消费查询", "月度统计 · 日均 · 折线图 · 日明细 · 特殊消费"},
-            {"/budget", "04", "消费管控", "预算监控，看已用、剩余与每日可用"},
-        };
-        sb.append("<section class='menuGrid'>");
-        for (String[] c : cards) {
-            sb.append("<a class='menuCard' href='").append(c[0]).append("'>");
-            sb.append("<span class='no'>[ ").append(c[1]).append(" ]</span>");
-            sb.append("<h2>").append(c[2]).append("</h2>");
-            sb.append("<p>").append(c[3]).append("</p>");
-            sb.append("<span class='go'>OPEN →</span>");
-            sb.append("</a>");
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div class='pagehead'><div><h1>总览</h1><div class='sub'><span class='bar'></span>")
+          .append("<span class='label'>OVERVIEW / ").append(ymd).append(" / 本月累计</span></div></div>")
+          .append("<div class='headtool'><span class='chip'>").append(Date_time.getYear())
+          .append(" 年 ").append(ov.month).append(" 月</span>")
+          .append("<a class='btn' href='/export'>导出</a>")
+          .append("<a class='btn solid' href='/save'>＋ 记一笔</a></div></div>");
+
+        // ---- KPI ----
+        sb.append("<div class='kpis'>");
+        double dayAvg = ov.expense / Math.max(1, ov.days);
+        sb.append(kpiCard("收", "本月收入 / INCOME", ov.income, "",
+                ov.income > 0 ? "本月累计" : "本月还没有收入记录", false));
+
+        String deltaTxt; String deltaCls;
+        if (ov.prevExpense > 0) {
+            double pct = (ov.expense - ov.prevExpense) / ov.prevExpense * 100;
+            deltaTxt = (pct >= 0 ? "▲ " : "▼ ") + String.format("%.1f", Math.abs(pct)) + "% 环比上月";
+            deltaCls = pct >= 0 ? "down" : "up";
+        } else {
+            deltaTxt = "日均 ¥" + money(dayAvg);
+            deltaCls = "";
         }
-        sb.append("</section>");
+        sb.append(kpiCard("支", "本月支出 / EXPENSE", ov.expense, deltaCls, deltaTxt, true));
+
+        sb.append(kpiCard("余", "本月结余 / BALANCE", balance, "",
+                ov.income > 0
+                    ? "结余率 " + String.format("%.1f", balance / ov.income * 100) + "% · 共 " + ov.count + " 笔支出"
+                    : "共 " + ov.count + " 笔支出 · 尚无收入", false));
+        sb.append("<section class='panel kpi budget'><i class='ghost' aria-hidden='true'>算</i>")
+          .append("<p class='label'>本月预算 / BUDGET</p>")
+          .append("<p class='num'><span class='cur'>¥</span>").append(money(Overview.BUDGET)).append("</p>")
+          .append("<div class='bTrack'><i style='width:").append(String.format("%.1f", Math.min(used, 1) * 100))
+          .append("%'></i></div>")
+          .append("<p class='delta'>已用 ").append(String.format("%.1f", used * 100)).append("% · 剩余 ¥")
+          .append(money(Math.max(0, Overview.BUDGET - ov.expense))).append("</p></section>");
+        sb.append("</div>");
+
+        // ---- 图表 ----
+        sb.append("<div class='row2'>");
+        sb.append("<section class='panel'><header class='ph'><span class='label'>30 天支出 / SPEND</span>")
+          .append("<span class='act' id='flowMeta'>日均 — · 峰值 —</span></header>")
+          .append("<div class='chartBox'><svg id='flow' viewBox='0 0 1000 190' role='img' aria-label='30 天每日支出柱状图'></svg>")
+          .append("<div class='legend'><span><i style='background:var(--accent);height:7px'></i>每日支出 DAILY</span>")
+          .append("<span><i style='background:transparent;border-top:1px dashed rgba(200,210,230,.62)'></i>7 日均线 AVG7</span></div>")
+          .append("</div></section>");
+
+        sb.append("<section class='panel'><header class='ph'><span class='label'>分类结构 / BREAKDOWN</span>")
+          .append("<span class='act'>").append(ov.cats.size()).append(" 类</span></header>")
+          .append("<div class='share'><div class='ringWrap'>")
+          .append("<svg id='ring' width='150' height='150' viewBox='0 0 150 150' role='img' aria-label='支出结构：内环日常/特殊，外环细分类'></svg>")
+          .append("<div class='center'><span class='v' id='ringVal'>¥").append(money(ov.expense)).append("</span>")
+          .append("<span class='k' id='ringKey'>EXPENSE</span></div></div>")
+          .append("<ul id='legend'></ul></div></section>");
+        sb.append("</div>");
+
+        // ---- 最近流水 ----
+        sb.append("<section class='panel'><header class='ph'><span class='label'>最近流水 / RECENT</span>")
+          .append("<a href='/query' class='act'>全部账目 DETAILS →</a></header>")
+          .append("<table><thead><tr><th style='width:100px'>编号 / NO.</th><th style='width:104px'>日期 / DATE</th>")
+          .append("<th style='width:110px'>分类 / TAG</th><th>备注 / NOTE</th>")
+          .append("<th style='width:140px;text-align:right'>金额 / AMOUNT</th></tr></thead><tbody>");
+        int no = ov.count;
+        for (Overview.Row r : ov.recent) {
+            sb.append("<tr><td class='id'>").append(String.format("%06d", Math.max(1, no--))).append("</td>")
+              .append("<td class='dt'>").append(ymd).append("-").append(String.format("%02d", r.date)).append("</td>")
+              .append("<td class='tag' data-cat='").append(esc(r.cat)).append("'><span class='tick'></span>")
+              .append(esc(r.cat)).append("</td>")
+              .append("<td class='note'>").append(esc(r.goods)).append("</td>")
+              .append("<td class='amt out'>-¥").append(String.format("%,.2f", r.price)).append("</td></tr>");
+        }
+        if (ov.recent.isEmpty()) {
+            sb.append("<tr><td colspan='5' style='text-align:center;color:var(--faint);padding:22px 0'>本月还没有记录</td></tr>");
+        }
+        sb.append("</tbody><tfoot><tr><td colspan='4'>共 ").append(ov.count).append(" 条记录 · 表 ").append(table).append("</td>")
+          .append("<td class='sum'>合计 <b>¥").append(String.format("%,.2f", ov.expense)).append("</b></td></tr></tfoot></table></section>");
+
+        sb.append("<script>window.OV=").append(ov.json()).append(";</script>");
         return shell("总览", "overview", sb.toString());
     }
+
+    private static String money(double v) {
+        return String.format("%,.0f", v);
+    }
+
+    private static String kpiCard(String ghost, String label, double value, String cls, String note, boolean accent) {
+        StringBuilder b = new StringBuilder();
+        b.append("<section class='panel kpi").append(accent ? " accentLine" : "").append("'>")
+         .append("<i class='ghost' aria-hidden='true'>").append(ghost).append("</i>")
+         .append("<p class='label'>").append(label).append("</p>")
+         .append("<p class='num'><span class='cur'>¥</span>").append(money(value)).append("</p>")
+         .append("<p class='delta ").append(cls).append("'>").append(note).append("</p></section>");
+        return b.toString();
+    }
+
 
     // ==================== 消费管控 ====================
 
@@ -1236,6 +1308,7 @@ public class WebServer {
             "<script>window.CAT_LIST=" + catJs() + ";</script>" +
             "<script src='/static/ascii-ocean.js'></script>" +
             "<script src='/static/shell.js'></script>" +
+            "<script src='/static/overview.js'></script>" +
             "</body></html>";
     }
 
