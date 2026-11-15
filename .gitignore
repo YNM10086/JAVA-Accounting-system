@@ -42,3 +42,6 @@ desktop/build/icon-sizes.png
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# === 临时设计稿（CAD 源图 / 转出的 DXF / 渲染图，不入库） ===
+design_tmp/

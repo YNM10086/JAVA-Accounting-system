@@ -43,11 +43,12 @@ public class PagePreview {
                 html = render("预览", body);
         }
 
-        String oceanUrl = Path.of(System.getProperty("project.root", "."), "static", "ascii-ocean.js")
-            .toAbsolutePath().toUri().toString();
+        Path staticDir = Path.of(System.getProperty("project.root", "."), "static").toAbsolutePath();
+        for (String f : new String[] { "app.css", "shell.js", "soft-nav.js", "ai-widget.js", "ascii-ocean.js" }) {
+            html = html.replace("/static/" + f, staticDir.resolve(f).toUri().toString());
+        }
 
-        html = html.replace("/static/ascii-ocean.js", oceanUrl)
-                   .replace("fadeIn:true", "fadeIn:false")
+        html = html.replace("fadeIn:true", "fadeIn:false")
                    .replace("</head>", "<style>*{animation:none!important;transition:none!important}</style></head>");
 
         Files.createDirectories(out.toAbsolutePath().getParent());

@@ -4,6 +4,11 @@ import java.time.LocalDate;
 
 public class Date_time {
 
+    // 返回当前年份
+    public static int getYear() {
+        return LocalDate.now().getYear();
+    }
+
     // 返回当前月份（1-12）
     public static int getMonth() {
         return LocalDate.now().getMonthValue();

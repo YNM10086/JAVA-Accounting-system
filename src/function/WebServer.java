@@ -828,42 +828,33 @@ public class WebServer {
     private static String mainPage() {
         String t = getMonthTable();
         StringBuilder sb = new StringBuilder();
-        sb.append("<div class='hero-title-wrap'>");
-        sb.append("<h1 class='hero-title'>消费记录系统</h1>");
-        sb.append("<p class='hero-subtitle'>认真记录每一笔花销</p>");
-        sb.append("</div>");
-        sb.append("<p class='hint'>当前月份表: ").append(t).append(" | 日期: ").append(Date_time.getDay()).append("日</p>");
-        sb.append("<div class='hero-cards'>");
-        // 卡片一：进账设置
-        sb.append("<a href='/income' class='hero-link' style='--i:0'>");
-        sb.append("<div class='hero-card hero-card-income'>");
-        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M12 2v20M17 7H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>进账设置</h2><p>设置当月收入,消费管控以此为依据</p></div>");
-        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
-        sb.append("</div></a>");
-        // 卡片二：存入消费
-        sb.append("<a href='/save' class='hero-link' style='--i:1'>");
-        sb.append("<div class='hero-card hero-card-save'>");
-        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><circle cx='12' cy='12' r='10'/><path d='M12 8v8M8 12h8'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>存入消费</h2><p>记录日常消费或特殊消费,按日期存入当月表中</p></div>");
-        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
-        sb.append("</div></a>");
-        // 卡片二：消费查询
-        sb.append("<a href='/query' class='hero-link' style='--i:2'>");
-        sb.append("<div class='hero-card hero-card-query'>");
-        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>消费查询</h2><p>月度统计 · 日均消费 · 折线图 · 日明细 · 特殊消费</p></div>");
-        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
-        sb.append("</div></a>");
-        // 卡片三：消费管控
-        sb.append("<a href='/budget' class='hero-link' style='--i:3'>");
-        sb.append("<div class='hero-card hero-card-budget'>");
-        sb.append("<div class='hero-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' width='36' height='36'><path d='M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2'/><circle cx='12' cy='12' r='7'/><path d='M12 9v3l2 2'/></svg></div>");
-        sb.append("<div class='hero-body'><h2>消费管控</h2><p>预算监控,智慧理财每一笔支出</p></div>");
-        sb.append("<div class='hero-arrow'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' width='24' height='24'><path d='M9 18l6-6-6-6'/></svg></div>");
-        sb.append("</div></a>");
-        sb.append("</div>");
-        return page("主菜单", sb.toString());
+        sb.append("<div class='pagehead'><div>");
+        sb.append("<h1>总览</h1>");
+        sb.append("<div class='sub'><span class='bar'></span><span>OVERVIEW / ").append(t)
+          .append(" / 本月累计</span></div>");
+        sb.append("</div><div class='headtool'>");
+        sb.append("<a class='btn' href='/query'>看明细</a>");
+        sb.append("<a class='btn solid' href='/save'>+ 记一笔</a>");
+        sb.append("</div></div>");
+
+        // P0 试点：旧的四个人口原样保留，只是换成新壳的样式；P1 起这块换成真总览
+        String[][] cards = {
+            {"/income", "01", "进账设置", "设置当月收入，消费管控以此为据"},
+            {"/save",   "02", "存入消费", "记一笔日常或特殊消费，按日期入当月表"},
+            {"/query",  "03", "消费查询", "月度统计 · 日均 · 折线图 · 日明细 · 特殊消费"},
+            {"/budget", "04", "消费管控", "预算监控，看已用、剩余与每日可用"},
+        };
+        sb.append("<section class='menuGrid'>");
+        for (String[] c : cards) {
+            sb.append("<a class='menuCard' href='").append(c[0]).append("'>");
+            sb.append("<span class='no'>[ ").append(c[1]).append(" ]</span>");
+            sb.append("<h2>").append(c[2]).append("</h2>");
+            sb.append("<p>").append(c[3]).append("</p>");
+            sb.append("<span class='go'>OPEN →</span>");
+            sb.append("</a>");
+        }
+        sb.append("</section>");
+        return shell("总览", "overview", sb.toString());
     }
 
     // ==================== 消费管控 ====================
@@ -1129,6 +1120,125 @@ public class WebServer {
             "<script src='/static/soft-nav.js'></script>" +
             "<script src='/static/ai-widget.js'></script>" +
             "</body></html>";
+    }
+
+    // ==================== 新 UI 的壳 ====================
+
+    /** 左栏导航：key / 序号 / 中文 / 英文 / 路由。设置页 P2 才上线，先置灰。 */
+    private static final String[][] NAV = {
+        {"overview", "01", "总览", "OVERVIEW", "/main", ""},
+        {"entry",    "02", "记一笔", "ENTRY", "/save", ""},
+        {"income",   "03", "收入", "INCOME", "/income", ""},
+        {"details",  "04", "明细", "DETAILS", "/query", ""},
+        {"budget",   "05", "预算", "BUDGET", "/budget", ""},
+        {"settings", "06", "设置", "SETTINGS", "/settings", "off"},
+        {"export",   "07", "导出", "EXPORT", "/export", ""},
+    };
+
+    /**
+     * 整页骨架：顶栏 / 左栏 / 视图 / 状态栏 / AI 小球。
+     * 页面方法只负责 body 片段，壳只有这一份。
+     */
+    private static String shell(String title, String navKey, String body) {
+        return "<!DOCTYPE html><html lang='zh'><head><meta charset='UTF-8'>" +
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
+            "<title>" + esc(title) + " · 鲨鱼账本</title>" +
+            "<link rel='stylesheet' href='/static/app.css'>" +
+            "</head><body>" +
+            "<canvas id='oceanBg' aria-hidden='true'></canvas>" +
+            "<div class='scrim' aria-hidden='true'></div>" +
+            "<div class='frame'>" +
+            shellTop(navKey) +
+            "<div class='stage'>" +
+            shellRail(navKey) +
+            "<main class='view'>" + body + "</main>" +
+            "</div>" +
+            shellStatus() +
+            "</div>" +
+            shellAi() +
+            "<script src='/static/ascii-ocean.js'></script>" +
+            "<script src='/static/shell.js'></script>" +
+            "</body></html>";
+    }
+
+    private static String shellTop(String navKey) {
+        String crumb = "OVERVIEW", idx = "[ 01 ]";
+        for (String[] n : NAV) {
+            if (n[0].equals(navKey)) { crumb = n[3]; idx = "[ " + n[1] + " ]"; }
+        }
+        return "<header class='top'>" +
+            "<div class='brand'>" +
+            "<svg width='24' height='24' viewBox='0 0 24 24' aria-hidden='true'>" +
+            "<circle cx='12' cy='12' r='9.6' fill='none' stroke='#EDEDED' stroke-width='2.1'/>" +
+            "<path d='M12 7.4 L16.2 14.6 L7.8 14.6 Z' fill='#ff8a1e'/></svg>" +
+            "<div><div class='zh'>鲨鱼账本</div><div class='en'>SHARK LEDGER</div></div>" +
+            "</div>" +
+            "<div class='sep' aria-hidden='true'></div>" +
+            "<div class='crumbs'><span class='k'>" + idx + "</span><span class='v'>" + crumb +
+            "</span><span class='k'>/ " + Date_time.getYear() + "-" + String.format("%02d", Date_time.getMonth()) + "</span></div>" +
+            "<div class='topRight'>" +
+            "<button class='aiOrb' id='aiOrb' type='button' aria-label='AI 记账' aria-expanded='false' title='AI 记账 · 点开说一句'>" +
+            "<svg viewBox='0 0 36 36' aria-hidden='true'><defs><radialGradient id='orbGlow'>" +
+            "<stop offset='0' stop-color='#ff8a1e' stop-opacity='.40'/>" +
+            "<stop offset='58%' stop-color='#ff8a1e' stop-opacity='.10'/>" +
+            "<stop offset='100%' stop-color='#ff8a1e' stop-opacity='0'/>" +
+            "</radialGradient></defs>" +
+            "<circle class='orbRing' cx='18' cy='18' r='13.6' fill='none' stroke='rgba(155,180,225,.34)' stroke-width='1'/>" +
+            "<circle class='orbSweep' cx='18' cy='18' r='13.6' fill='none' stroke='#ff8a1e' stroke-width='1.4' stroke-dasharray='16 69.5' opacity='.85'/>" +
+            "<circle class='orbHalo' cx='18' cy='18' r='12' fill='url(#orbGlow)'/>" +
+            "<circle class='orbCore' cx='18' cy='18' r='4' fill='#ff8a1e'/>" +
+            "</svg></button>" +
+            "<div class='sep' aria-hidden='true'></div>" +
+            "<span class='clock' id='clock'>--</span>" +
+            "<div class='winbtns' aria-hidden='true'><i></i><i></i><i></i></div>" +
+            "</div></header>";
+    }
+
+    private static String shellRail(String navKey) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<aside class='rail'><nav class='nav'><div class='group'>LEDGER</div>");
+        for (String[] n : NAV) {
+            if ("settings".equals(n[0])) sb.append("<div class='group'>SYSTEM</div>");
+            boolean on = n[0].equals(navKey);
+            sb.append("<a href='").append(n[4]).append("'")
+              .append(on ? " class='on'" : "off".equals(n[5]) ? " class='off' title='P2 上线'" : "")
+              .append("><span class='idx'>").append(n[1]).append("</span>")
+              .append("<span class='txt'>").append(n[2]).append("</span>")
+              .append("<span class='en'>").append(n[3]).append("</span></a>");
+        }
+        sb.append("</nav><div class='railBot'>")
+          .append("<div class='stat'><span>DATABASE</span><span class='dot'>已连接</span></div>")
+          .append("<div class='stat'><span>AI ENGINE</span><span class='dot' id='aiEngine'>就绪</span></div>")
+          .append("<div class='stat'><span>BUILD</span><span>v3.0.0</span></div>")
+          .append("</div></aside>");
+        return sb.toString();
+    }
+
+    private static String shellStatus() {
+        return "<footer class='statusbar'>" +
+            "<span class='live'><i></i>账本已同步</span><span>LEDGER SYNCHRONISED</span>" +
+            "<div class='mid'><span><kbd>F2</kbd> 记一笔</span><span><kbd>K</kbd> 搜索</span><span><kbd>ESC</kbd> 返回</span></div>" +
+            "<div class='barcode' id='barcode' aria-hidden='true'></div>" +
+            "</footer>";
+    }
+
+    /** AI 小球带出的面板与气泡：位置、文案都在壳里，行为在 static/shell.js。 */
+    private static String shellAi() {
+        return "<section class='panel aiPanel' id='aiPanel' aria-hidden='true'>" +
+            "<header class='ph'><span class='label'>AI / 记一笔</span>" +
+            "<span class='st'><i></i><span id='aiModel'>AI · 就绪</span></span></header>" +
+            "<div class='aiBody'>" +
+            "<textarea class='aiInput' id='aiInput' rows='3' placeholder='说一句就行，例如：中午牛肉面 28，晚上打车 35'></textarea>" +
+            "<div class='aiRow'><span class='aiHint'>ENTER 解析 · SHIFT+ENTER 换行</span>" +
+            "<div class='aiRowBtns'><button class='btn' id='aiAdvise' type='button'>建议</button>" +
+            "<button class='btn solid' id='aiParse' type='button'>解析</button></div></div>" +
+            "<div class='aiStat' id='aiStat'></div>" +
+            "<div class='aiPrev' id='aiPrev' hidden></div>" +
+            "<div class='aiAdvice' id='aiAdvice' hidden></div>" +
+            "</div></section>" +
+            "<div class='panel aiBubble' id='aiBubble' role='status'>" +
+            "<div class='bk'><span>AI</span><span class='t'>CLICK TO REPLY</span></div>" +
+            "<p class='txt'></p></div>";
     }
 
     private static String card(String href, String title, String desc, int i) {
