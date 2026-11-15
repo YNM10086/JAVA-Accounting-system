@@ -525,3 +525,8 @@ td.type .t1{color:var(--accent);background:rgba(255,138,30,.1);border-color:rgba
 td.type .t2{color:#9db0cc;background:rgba(91,112,143,.16);border-color:rgba(91,112,143,.38)}
 
 thead th{white-space:nowrap}
+
+/* 明细表底部「显示全部」 */
+.tableMore{padding:10px 12px;border-top:1px solid var(--line);text-align:center}
+.tableMore .link{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim)}
+.tableMore .link:hover{color:var(--accent)}

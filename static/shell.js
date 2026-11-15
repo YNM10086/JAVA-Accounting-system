@@ -345,6 +345,16 @@
     document.querySelectorAll("section.sec").forEach((s) => io.observe(s));
   }
 
+  /* ---------------- 6b. 明细：展开全部 ---------------- */
+  function detailMore() {
+    const btn = document.getElementById("detMore");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#details tbody tr.more").forEach((tr) => { tr.hidden = false; });
+      btn.parentElement.remove();
+    });
+  }
+
   /* ---------------- 7. 设置页里的 AI 状态 ---------------- */
   function settingsBits() {
     const el = document.getElementById("settingsAi");
@@ -362,6 +372,7 @@
     corners();
     aiInit();
     navSpy();
+    detailMore();
     settingsBits();
     if (window.__flash) flash(window.__flash[0], window.__flash[1]);
 

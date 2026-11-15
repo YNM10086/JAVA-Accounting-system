@@ -116,7 +116,7 @@ public final class Sections {
         if (conn != null) {
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery(
-                     "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC LIMIT 20")) {
+                     "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC LIMIT 400")) {
                 while (rs.next()) {
                     rows.add(new String[]{ String.valueOf(rs.getInt(1)), rs.getString(2),
                             String.format("%.2f", rs.getDouble(3)), String.valueOf(rs.getInt(4)),
@@ -129,7 +129,7 @@ public final class Sections {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<section class='sec' id='details'>")
-          .append(head("04", "明细", "DETAILS / 最近 20 条 · 共 " + ov.count + " 条",
+          .append(head("04", "明细", "DETAILS / 最近 " + Math.min(20, ov.count) + " 条 · 共 " + ov.count + " 条",
                   "<a class='act' href='/export'>导出本月 →</a>"))
           .append("<div class='statGrid'>")
           .append(stat("本月支出", "¥" + money(ov.expense)))
@@ -144,8 +144,11 @@ public final class Sections {
         if (rows.isEmpty()) {
             sb.append("<tr><td colspan='6' class='empty'>本月还没有记录</td></tr>");
         }
+        int shown = 0;
         for (String[] r : rows) {
-            sb.append("<tr><td class='dt'>").append(String.format("%02d", Integer.parseInt(r[0]))).append(" 日</td>")
+            sb.append(shown >= 20 ? "<tr class='more' hidden>" : "<tr>");
+            shown++;
+            sb.append("<td class='dt'>").append(String.format("%02d", Integer.parseInt(r[0]))).append(" 日</td>")
               .append("<td class='tag' data-cat='").append(esc(r[4])).append("'><span class='tick'></span>")
               .append(esc(r[4])).append("</td>")
               .append(WebServer.typeCell(Integer.parseInt(r[3])))
@@ -158,7 +161,12 @@ public final class Sections {
               .append("<input type='hidden' name='goods' value='").append(esc(r[1])).append("'>")
               .append("<button class='link danger' type='submit'>删除</button></form></td></tr>");
         }
-        sb.append("</tbody></table></div></section>");
+        sb.append("</tbody></table>");
+        if (rows.size() > 20) {
+            sb.append("<div class='tableMore'><button class='link' type='button' id='detMore'>显示全部 ")
+              .append(rows.size()).append(" 条</button></div>");
+        }
+        sb.append("</div></section>");
         return sb.toString();
     }
 
