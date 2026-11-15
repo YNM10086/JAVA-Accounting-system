@@ -35,6 +35,13 @@ public class WebServer {
         srv.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
         srv.start();
 
+        // 启动时自愈一次表结构（缺 cat 列就补），失败不影响服务
+        try (Connection c = One.getConn()) {
+            ensureCatColumn(c);
+        } catch (Exception e) {
+            System.out.println("表结构检查跳过：" + e.getMessage());
+        }
+
         String url = "http://localhost:" + usedPort;
         System.out.println("====================================");
         System.out.println("Web服务器已启动: " + url);
@@ -121,17 +128,20 @@ public class WebServer {
             html(ex, savePage("价格格式错误", month, day)); return;
         }
         int num1 = "1".equals(typeStr) ? 1 : 2;
+        String cat = Cat.clean(f.get("cat"), goods);
 
         String table = String.format("table_%02d", month);
         Connection conn = One.getConn();
         if (conn == null) { html(ex, savePage("数据库连接失败", month, day)); return; }
         try {
+            ensureCatColumn(conn);
             PreparedStatement ps = One.getPreparedStmt(conn,
-                "INSERT INTO " + table + " (date, goods, price, num_1) VALUES (?, ?, ?, ?)");
+                "INSERT INTO " + table + " (date, goods, price, num_1, cat) VALUES (?, ?, ?, ?, ?)");
             ps.setInt(1, day);
             ps.setString(2, goods.trim());
             ps.setDouble(3, price);
             ps.setInt(4, num1);
+            ps.setString(5, cat);
             ps.executeUpdate();
             ps.close();
             conn.close();
@@ -271,6 +281,47 @@ public class WebServer {
             st.execute("CREATE TABLE IF NOT EXISTS income_records (id INT AUTO_INCREMENT PRIMARY KEY, month INT NOT NULL, date INT NOT NULL, amount DECIMAL(10,2) NOT NULL, description VARCHAR(200) DEFAULT '')");
             st.close();
         } catch (Exception e) { /* 表已存在则忽略 */ }
+        ensureCatColumn(conn);
+    }
+
+    /** 分类下拉选项（与 Cat.ALL 同源） */
+    private static String catOptions() {
+        StringBuilder b = new StringBuilder();
+        for (String c : Cat.ALL) b.append("<option>").append(c).append("</option>");
+        return b.toString();
+    }
+
+    /**
+     * 表结构自愈：给 table_01~12 补一列 cat（幂等；表不存在就跳过）。
+     * 月表是手工建的，不能假定 cat 一定在。
+     */
+    static void ensureCatColumn(Connection conn) {
+        if (conn == null) return;
+        for (int m = 1; m <= 12; m++) {
+            String t = String.format("table_%02d", m);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?")) {
+                    ps.setString(1, t);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next() || rs.getInt(1) == 0) continue;
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='cat'")) {
+                    ps.setString(1, t);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next() && rs.getInt(1) > 0) continue;
+                    }
+                }
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE " + t + " ADD COLUMN cat VARCHAR(16) NOT NULL DEFAULT '其他'");
+                    System.out.println("已补列 " + t + ".cat");
+                }
+            } catch (Exception e) {
+                System.out.println("补列失败（" + t + "）：" + e.getMessage());
+            }
+        }
     }
 
     /** 读取当月总收入,无记录返回 1500 */
@@ -1018,6 +1069,8 @@ public class WebServer {
             "<div class='input-wrap'><input name='goods' required placeholder='例如：午餐'></div></div>" +
             "<div class='input-group'><label>价格（元）</label>" +
             "<div class='input-wrap'><input name='price' type='number' step='0.01' required placeholder='例如：25.5'></div></div>" +
+            "<div class='input-group'><label>消费细类</label>" +
+            "<div class='input-wrap'><select name='cat'>" + catOptions() + "</select></div></div>" +
             "<div class='input-group'><label>月份</label>" +
             "<div class='input-wrap'><select name='month'>" + monthOptions + "</select></div></div>" +
             "<div class='input-group'><label>日期（日）</label>" +

@@ -174,13 +174,15 @@ public class AiAssistant {
         if (conn == null) throw new IOException("数据库连接失败");
         int n = 0;
         try {
+            WebServer.ensureCatColumn(conn);
             PreparedStatement ps = One.getPreparedStmt(conn,
-                    "INSERT INTO " + table + " (date, goods, price, num_1) VALUES (?, ?, ?, ?)");
+                    "INSERT INTO " + table + " (date, goods, price, num_1, cat) VALUES (?, ?, ?, ?, ?)");
             for (Item it : items) {
                 ps.setInt(1, it.day);
                 ps.setString(2, it.goods);
                 ps.setDouble(3, it.price);
                 ps.setInt(4, it.type);
+                ps.setString(5, Cat.clean(null, it.goods));
                 ps.executeUpdate();
                 n++;
             }
