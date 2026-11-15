@@ -419,8 +419,15 @@ public class WebServer {
         File file = new File(path.substring(1));
         if (!file.exists()) { ex.sendResponseHeaders(404, -1); return; }
         byte[] bytes = Files.readAllBytes(file.toPath());
-        String ct = path.endsWith(".js") ? "application/javascript" :
-            path.endsWith(".css") ? "text/css" : "application/octet-stream";
+        String lower = path.toLowerCase();
+        String ct = lower.endsWith(".js") ? "application/javascript; charset=utf-8" :
+            lower.endsWith(".css") ? "text/css; charset=utf-8" :
+            lower.endsWith(".html") ? "text/html; charset=utf-8" :
+            lower.endsWith(".json") ? "application/json; charset=utf-8" :
+            lower.endsWith(".png") ? "image/png" :
+            lower.endsWith(".ico") ? "image/x-icon" :
+            lower.endsWith(".svg") ? "image/svg+xml" :
+            "application/octet-stream";
         ex.getResponseHeaders().set("Content-Type", ct);
         ex.sendResponseHeaders(200, bytes.length);
         try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
@@ -451,7 +458,7 @@ public class WebServer {
             wb.write(bos);
             byte[] bytes = bos.toByteArray();
 
-            String name = "鲨鱼账本-" + (all ? Date_time.getYear() + "年" : Date_time.getYear() + "-" + String.format("%02d", month)) + ".xlsx";
+            String name = "消费记录-" + (all ? Date_time.getYear() + "年" : Date_time.getYear() + "-" + String.format("%02d", month)) + ".xlsx";
             ex.getResponseHeaders().set("Content-Type",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             ex.getResponseHeaders().set("Content-Disposition",
@@ -803,7 +810,7 @@ public class WebServer {
     private static String shell(String title, String navKey, String body) {
         return "<!DOCTYPE html><html lang='zh'><head><meta charset='UTF-8'>" +
             "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
-            "<title>" + esc(title) + " · 鲨鱼账本</title>" +
+            "<title>" + esc(title) + " · 消费记录系统</title>" +
             "<link rel='stylesheet' href='/static/app.css'>" +
             "</head><body>" +
             "<canvas id='oceanBg' aria-hidden='true'></canvas>" +
@@ -834,7 +841,7 @@ public class WebServer {
             "<svg width='24' height='24' viewBox='0 0 24 24' aria-hidden='true'>" +
             "<circle cx='12' cy='12' r='9.6' fill='none' stroke='#EDEDED' stroke-width='2.1'/>" +
             "<path d='M12 7.4 L16.2 14.6 L7.8 14.6 Z' fill='#ff8a1e'/></svg>" +
-            "<div><div class='zh'>鲨鱼账本</div><div class='en'>SHARK LEDGER</div></div>" +
+            "<div><div class='zh'>消费记录系统</div><div class='en'>BOOKKEEPING SYSTEM</div></div>" +
             "</div>" +
             "<div class='sep' aria-hidden='true'></div>" +
             "<div class='crumbs'><span class='k'>" + idx + "</span><span class='v'>" + crumb +
