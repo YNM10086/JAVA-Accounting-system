@@ -19,6 +19,7 @@
   - `lib/` — 依赖 jar（MySQL Connector、Apache POI；POI 供归档用）
   - `out/` — 编译输出
   - `desktop/` — Electron 桌面版（`main.js` 起 Java 子进程并开窗口、`build.ps1` 出 NSIS 安装包、`build/icon.ico` 图标）
+  - `UPdateVersion/` — 本机快速更新脚本（双击编译当前源码 → 覆盖已装 `resources/runtime`，带备份与回滚）
   - `tools/icon/IconGen.java` — 原创图标生成器（Java2D → 多尺寸 ICO；默认 f 黑白叠页，`build.ps1` 每次构建自动重生成）
   - `tools/page-preview/` — 不连 MySQL 的页面预览截图工具
 - 跨年归档机制：
@@ -51,6 +52,7 @@
   - **旧代码清理（2026-11-15）**：删掉 `css()`/`page()`/`pageRaw()`/`savePage`/`incomePage`/`queryPage`/`budgetPage`/`specialPage`/`detailPage`/`chartPage`/`card()`/`serveChart` 与 `/chart-img` 路由，`WebServer.java` 1518 → 844 行；`errorPage` 改用 `shell()`。
   - **预算可按月改（2026-11-15）**：新增 `budgets(month, amount)` 表（幂等建表），`Overview.budget` 按月读、默认 1500；预算段自带表单（POST `/budget`，`ON DUPLICATE KEY UPDATE`），改完 KPI/进度条/每日可用全跟着变。
   - 下一步：分类清单可配置、明细按月翻页、桌面打包回归
+- [x] **本机快速更新脚本（2026-11-16）** — `UPdateVersion\update-2026-11-16.bat` 双击即续：编译 `src`（`--release 17`）→ 暂存 `static`/`lib` → 从注册表卸载项定位安装目录 → 关掉正在跑的软件 → 备份旧 `classes/static/lib` 到 `backup\<时间>`（留 5 份）→ robocopy `/MIR` 覆盖 → 重启。`rollback.bat` 一键还原最近备份。实测：关 5 个进程 → 备份 22.1MB → 覆盖 → 重启后 `/main` 200、品牌/壳/AI 球齐全；回滚后 class 时间戳回到 11/15 14:41。只管 Java + 静态资源，改 `desktop\`（app.asar）仍要跑 `build.ps1` 重装。
 - [x] 开屏动画（CAD 分镜）— 原型 `design_tmp/prototype/splash.html` 已定稿（v13，`?t=秒` 定格、`?debug=1`、`?labels=1`）；将来落到 `static/`（网页开屏）或 `desktop/`（Electron 启动画面）时直接搬
 - [x] 操作界面设计 — `design_tmp/prototype/app.html`（开屏之后的主界面）v3：鲨鱼背景接 `static/ascii-ocean.js`（`?nbg=1` 关）、`?nofx=1` 关进场动效（截图必用）、`?t=秒` 定格进场（出分镜图）。四张 KPI（收入/支出/结余/预算进度）、30 天支出柱状 + 悬停读数、分类环图（图例联动）、最近流水 + 表尾合计、状态栏。主色橙 `#ff8a1e`（用户已定），背景维持现状（面板 87% 不透明）。1440×900 一屏装下。v3 三件事：①顶部 AI 小球（点开输入框 → 假解析 → 预览 → 入库 → 本月建议；挂机 30s 主动冒泡、之后 2min 一句），气泡/面板同一套直角发丝线语言；②进场拆两拍——顶栏/左栏 1px 橙光扫过 + 导航错峰亮起（0~.6s），再页头/KPI/图表/表格依次上浮（.6s 起，总长 1.5s）；③环图改成**同心双环**：内环日常/特殊、外环 6 细类（餐饮/其他/购物/教育/娱乐/AI API），按性质成组排序，悬停互相联动、中心读数跟着换。自检 `prototype/_check_ai.py`。**下一步待定**：记一笔 / 明细 / 预算页，或总览接真实后端数据
 - [x] 接入本地 Ollama AI（技术验证版，2026-11-11）— 右下角挂件：单击输入自然语言 → 预览（商品/金额/日常或特殊/日期）→ 确认入库 → 自动给本月建议；双击直接要建议；空闲 60 秒冒泡提醒。模型默认 `qwen2.5:7b`，`LOH_AI_MODEL` / `LOH_AI_URL` 可覆盖
