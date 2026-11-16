@@ -1262,6 +1262,11 @@
           }
         };
         if (this.reduced.addEventListener) this.reduced.addEventListener("change", this.onMotionPreference);
+        // 窗口从后台切回来时重新起跑，避免一段时间不刷新后彻底停住
+        this.onVisible = () => {
+          if (!this.disposed && !this.reduced.matches && !document.hidden) this.schedule();
+        };
+        if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.onVisible);
         this.rafStep = (now) => this.tick(now);
       }
 
@@ -1278,6 +1283,7 @@
         cancelAnimationFrame(this.raf);
         if (this.resizeObserver) this.resizeObserver.disconnect();
         if (this.reduced.removeEventListener) this.reduced.removeEventListener("change", this.onMotionPreference);
+        if (this.onVisible && typeof document !== "undefined") document.removeEventListener("visibilitychange", this.onVisible);
       }
 
       resize() {
@@ -1320,33 +1326,42 @@
       }
 
       tick(now) {
-        const dt = Math.min(0.1, (now - this.last) / 1000);
-        this.last = now;
-        this.acc += dt;
-        let steps = 0;
-        while (this.acc >= STEP && steps < MAX_STEPS) {
-          this.world.step(STEP);
-          this.acc -= STEP;
-          steps++;
-        }
-        if (steps === MAX_STEPS) this.acc = 0;
+        try {
+          const dt = Math.min(0.1, (now - this.last) / 1000);
+          this.last = now;
+          this.acc += dt;
+          let steps = 0;
+          while (this.acc >= STEP && steps < MAX_STEPS) {
+            this.world.step(STEP);
+            this.acc -= STEP;
+            steps++;
+          }
+          if (steps === MAX_STEPS) this.acc = 0;
 
-        // Full strength on the hero, a whisper behind an active transcript.
-        const heroTarget = Number(this.settings.heroOpacity);
-        const idleTarget = Number(this.settings.idleOpacity);
-        const target = this.heroActive()
-          ? (Number.isFinite(heroTarget) ? heroTarget : 1)
-          : (Number.isFinite(idleTarget) ? idleTarget : 0.1);
-        this.opacity += (target - this.opacity) * Math.min(1, dt * 3);
-        const rounded = Math.round(this.opacity * 100) / 100;
-        if (rounded !== this.paintedOpacity) {
-          this.paintedOpacity = rounded;
-          this.canvas.style.opacity = String(rounded);
-        }
+          // Full strength on the hero, a whisper behind an active transcript.
+          const heroTarget = Number(this.settings.heroOpacity);
+          const idleTarget = Number(this.settings.idleOpacity);
+          const target = this.heroActive()
+            ? (Number.isFinite(heroTarget) ? heroTarget : 1)
+            : (Number.isFinite(idleTarget) ? idleTarget : 0.1);
+          this.opacity += (target - this.opacity) * Math.min(1, dt * 3);
+          const rounded = Math.round(this.opacity * 100) / 100;
+          if (rounded !== this.paintedOpacity) {
+            this.paintedOpacity = rounded;
+            this.canvas.style.opacity = String(rounded);
+          }
 
-        this.renderer.world = this.world;
-        this.renderer.render(this.world, dt);
-        this.raf = requestAnimationFrame(this.rafStep);
+          this.renderer.world = this.world;
+          this.renderer.render(this.world, dt);
+        } catch (err) {
+          // 单帧出错不能把整个循环停掉——以前就是这样「背景突然卡住」的
+          if (!this.frameErrorLogged) {
+            this.frameErrorLogged = true;
+            if (typeof console !== "undefined" && console.warn) console.warn("[ocean] 单帧渲染出错，已跳过：", err);
+          }
+        } finally {
+          if (!this.disposed && !this.reduced.matches) this.raf = requestAnimationFrame(this.rafStep);
+        }
       }
 
       drawStill() {

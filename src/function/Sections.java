@@ -233,6 +233,8 @@ public final class Sections {
             "<dt>分类清单</dt><dd class='pills'>" + cats + "</dd>" +
             "<dt>数据库</dt><dd>MySQL · Cost_system · 当月表 " + String.format("table_%02d", ov.month) + "</dd>" +
             "<dt>AI 引擎</dt><dd id='settingsAi'>读取中…</dd>" +
+            "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
+            "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
             "<dt>版本</dt><dd>v3.0.0 · 单页结构</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +

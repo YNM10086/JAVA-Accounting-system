@@ -88,6 +88,7 @@ public class WebServer {
                 case "/ai/save"      -> { if ("POST".equals(method)) handleAiSave(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 case "/ai/advice"    -> { if ("POST".equals(method)) handleAiAdvice(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 case "/ai/classify"  -> { if ("POST".equals(method)) handleAiClassify(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
+                case "/ai/model"     -> { if ("POST".equals(method)) handleAiModel(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
                 default              -> {
                     if (path.startsWith("/static/")) serveStatic(ex, path);
                     else redirect(ex, "/main");
@@ -296,6 +297,18 @@ public class WebServer {
         }
     }
 
+    private static void handleAiModel(HttpExchange ex) throws IOException {
+        try {
+            String raw = readBody(ex);
+            Map<String, Object> body = Json.map(Json.parse(raw == null || raw.isEmpty() ? "{}" : raw));
+            String want = Json.str(body.get("model"));
+            AiAssistant.setModel(want);
+            json(ex, "{\"ok\":true,\"model\":\"" + Json.esc(AiAssistant.model()) + "\"}");
+        } catch (Exception e) {
+            json(ex, "{\"ok\":false,\"error\":\"" + Json.esc(errMsg(e)) + "\"}");
+        }
+    }
+
     private static void handleAiAdvice(HttpExchange ex) throws IOException {
         try {
             json(ex, "{\"ok\":true,\"advice\":\"" + Json.esc(AiAssistant.advice()) + "\"}");
@@ -333,6 +346,7 @@ public class WebServer {
             Statement st = conn.createStatement();
             st.execute("CREATE TABLE IF NOT EXISTS budgets (month INT PRIMARY KEY, amount DECIMAL(10,2) NOT NULL)");
             st.execute("CREATE TABLE IF NOT EXISTS income_records (id INT AUTO_INCREMENT PRIMARY KEY, month INT NOT NULL, date INT NOT NULL, amount DECIMAL(10,2) NOT NULL, description VARCHAR(200) DEFAULT '')");
+            st.execute("CREATE TABLE IF NOT EXISTS app_settings (k VARCHAR(48) PRIMARY KEY, v VARCHAR(255) NOT NULL)");
             st.close();
         } catch (Exception e) { /* 表已存在则忽略 */ }
         ensureCatColumn(conn);

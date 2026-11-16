@@ -128,7 +128,7 @@
   .btn{
     display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;
     border:1px solid var(--line-2);background:transparent;color:var(--ink);cursor:pointer;
-    font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-decoration:none;
   }
   .btn:hover{border-color:var(--accent);color:var(--accent)}
   .btn.solid{border-color:var(--accent);background:var(--accent);color:#000}
@@ -490,6 +490,15 @@
 .kv{display:grid;grid-template-columns:110px 1fr;gap:12px 20px;margin:0 0 4px}
 .kv dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--faint);padding-top:3px}
 .kv dd{margin:0;font-size:12.5px;color:var(--ink)}
+/* 设置里的模型下拉：和输入框同一套发丝线，但不占满整行 */
+.kv select{
+  width:auto;min-width:180px;height:30px;padding:0 10px;
+  border:1px solid var(--line-2);background:rgba(8,15,26,.75);color:var(--ink);
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;cursor:pointer;
+}
+.kv select:hover{border-color:rgba(155,180,225,.32)}
+.kv select:focus{outline:none;border-color:rgba(255,138,30,.6);background:rgba(255,138,30,.04)}
+.kv dd .hint{display:inline;margin-left:10px}
 .kv dd.pills{display:flex;flex-wrap:wrap;gap:6px}
 .kv .pill{
   font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim);

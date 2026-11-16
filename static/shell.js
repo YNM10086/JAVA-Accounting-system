@@ -53,9 +53,24 @@
   const AI_SPEECH = [
     "不要为了省钱克扣饭钱，要好好吃饭。",
     "今天记一笔了吗？月底才不慌。",
-    "餐饮已经过千了，这个月还剩几天。",
     "预算还剩一截，稳得住。",
-    "奶茶第 4 杯了，要不要顺手记一下？",
+    "奶茶这杯，要不要顺手记一下？",
+    "记完这笔，今天的账就齐了。",
+    "月底翻账单的人，会感谢现在记一笔的你。",
+    "有点小贵的东西，记下来才知道值不值。",
+    "今天的花销，比昨天更清楚了吗？",
+    "话费、房租这种固定支出，别忘了也记上。",
+    "钱花在哪儿，比花了多少更重要。",
+    "每一笔都记全，月底的建议才准。",
+    "记完账，顺手看一眼总览的环图。",
+    "想不起来昨天花了什么？现在补一笔也来得及。",
+    "攒钱不是不花，是知道自己在花什么。",
+    "这一笔算日常还是特殊，你说了算。",
+    "记账这事，连续几天就顺手了。",
+    "分类拿不准？让我猜，你改就是了。",
+    "预算紧不紧，提前几天就能看出来。",
+    "有点犹豫的支出，先记下来再决定也不迟。",
+    "账本干净的人，心里也干净。",
   ];
 
   function aiInit() {
@@ -64,7 +79,16 @@
 
     const ta = $("aiInput"), stat = $("aiStat"), prev = $("aiPrev"), adv = $("aiAdvice");
     const engine = $("aiEngine");
-    let busy = false, open = false, speechIdx = 0, bubbleTimer = 0, idleTimer = 0;
+    let busy = false, open = false, speechIdx = -1, bubbleTimer = 0, idleTimer = 0;
+
+    /** 随机挑一句，但不连着重复上一句 */
+    function nextSpeech() {
+      if (AI_SPEECH.length < 2) return 0;
+      let i = Math.floor(Math.random() * AI_SPEECH.length);
+      if (i === speechIdx) i = (i + 1) % AI_SPEECH.length;
+      speechIdx = i;
+      return i;
+    }
 
     const setStatus = (msg, err) => {
       if (!stat) return;
@@ -106,7 +130,7 @@
     function say() {
       if (open || !bubble) return;
       const txt = bubble.querySelector(".txt");
-      if (txt) txt.textContent = AI_SPEECH[speechIdx++ % AI_SPEECH.length];
+      if (txt) txt.textContent = AI_SPEECH[nextSpeech()];
       bubble.classList.add("show");
       orb.classList.add("say");
       clearTimeout(bubbleTimer);
@@ -355,14 +379,111 @@
     });
   }
 
-  /* ---------------- 7. 设置页里的 AI 状态 ---------------- */
+  /* ---------------- 7. 设置页里的 AI 状态与模型切换 ---------------- */
   function settingsBits() {
     const el = document.getElementById("settingsAi");
-    if (!el) return;
+    const sel = document.getElementById("modelSel");
+    const hint = document.getElementById("modelHint");
+    if (!el && !sel) return;
     fetch("/ai/status", { credentials: "same-origin" })
       .then((r) => r.json())
-      .then((j) => { el.textContent = j.ok ? "Ollama · " + (j.model || "已连接") : "离线（Ollama 未启动）"; })
-      .catch(() => { el.textContent = "读取失败"; });
+      .then((j) => {
+        if (el) el.textContent = j.ok ? "Ollama · " + (j.model || "已连接") : "离线（Ollama 未启动）";
+        if (!sel) return;
+
+        const models = j.models || [];
+        sel.innerHTML = "";
+        models.forEach((m) => {
+          const o = document.createElement("option");
+          o.value = m;
+          o.textContent = m + (m === j.model ? "  ← 当前" : "");
+          if (m === j.model) o.selected = true;
+          sel.appendChild(o);
+        });
+        if (!models.length) {
+          const o = document.createElement("option");
+          o.value = "";
+          o.textContent = "（Ollama 未启动，读不到模型）";
+          sel.appendChild(o);
+          sel.disabled = true;
+          return;
+        }
+        if (hint) hint.textContent = "切换后立刻生效，建议解析与建议都用它";
+
+        sel.addEventListener("change", () => {
+          const want = sel.value;
+          if (!want) return;
+          sel.disabled = true;
+          if (hint) hint.textContent = "正在切换…";
+          fetch("/ai/model", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: want }),
+          })
+            .then((r) => r.json())
+            .then((k) => {
+              if (!k.ok) throw new Error(k.error || "切换失败");
+              const hdr = document.getElementById("aiModel");
+              if (hdr) hdr.textContent = want + " · 就绪";
+              if (el) el.textContent = "Ollama · " + want;
+              if (hint) hint.textContent = "当前模型：" + want + "（已生效）";
+              flash("AI 模型已切到 " + want);
+            })
+            .catch((err) => {
+              if (hint) hint.textContent = "切换失败，仍是 " + j.model;
+              flash("切换失败：" + (err && err.message ? err.message : err), true);
+            })
+            .finally(() => { sel.disabled = false; });
+        });
+      })
+      .catch(() => { if (el) el.textContent = "读取失败"; });
+  }
+
+  /* ---------------- 7b. 导出：页面内拿 blob 再下载，不跳转 ---------------- */
+  function exportLinks() {
+    document.querySelectorAll("a[href^='/export']").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (a.dataset.busy === "1") return;
+
+        const href = a.getAttribute("href");
+        const label = a.textContent;
+        const wasSolid = a.classList.contains("solid");
+        a.dataset.busy = "1";
+        a.textContent = "正在生成…";
+        a.style.opacity = ".6";
+
+        fetch(href, { credentials: "same-origin" })
+          .then((r) => {
+            if (!r.ok) throw new Error("服务返回 " + r.status);
+            const cd = r.headers.get("Content-Disposition") || "";
+            const mStar = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+            const mPlain = /filename="?([^";]+)"?/i.exec(cd);
+            let name = mStar ? mStar[1] : (mPlain ? mPlain[1] : "export.xlsx");
+            try { name = decodeURIComponent(name); } catch (err) { /* 保持原样 */ }
+            return r.blob().then((b) => ({ blob: b, name: name }));
+          })
+          .then((got) => {
+            const url = URL.createObjectURL(got.blob);
+            const t = document.createElement("a");
+            t.href = url;
+            t.download = got.name;
+            document.body.appendChild(t);
+            t.click();
+            t.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            flash("已导出 " + got.name);
+          })
+          .catch((err) => flash("导出失败：" + (err && err.message ? err.message : err), true))
+          .finally(() => {
+            a.textContent = label;
+            a.style.opacity = "";
+            if (wasSolid) a.classList.add("solid");
+            delete a.dataset.busy;
+          });
+      });
+    });
   }
 
   /* ---------------- 5. 挂载 ---------------- */
@@ -374,6 +495,7 @@
     navSpy();
     detailMore();
     settingsBits();
+    exportLinks();
     if (window.__flash) flash(window.__flash[0], window.__flash[1]);
 
     // 状态栏右侧那排装饰条

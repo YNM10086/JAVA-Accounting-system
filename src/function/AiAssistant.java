@@ -23,7 +23,10 @@ import java.util.Map;
 public class AiAssistant {
 
     private static final String BASE  = env("LOH_AI_URL", "http://127.0.0.1:11434");
-    private static final String MODEL = env("LOH_AI_MODEL", "qwen2.5:7b");
+    /** 默认模型：可在「设置」里换，存库 app_settings.ai_model；环境变量 LOH_AI_MODEL 只作为初始值 */
+    private static final String DEFAULT_MODEL = "qwen3.5:9b";
+    private static final String ENV_MODEL = env("LOH_AI_MODEL", DEFAULT_MODEL);
+    private static volatile String modelCache = null;
     private static final Duration TIMEOUT = Duration.ofSeconds(90);
 
     private static final HttpClient CLIENT = HttpClient.newBuilder()
@@ -44,17 +47,76 @@ public class AiAssistant {
         return (v == null || v.trim().isEmpty()) ? def : v.trim();
     }
 
+    // ==================== 模型选择 ====================
+
+    /** 当前模型：设置里存过就用存的，否则用环境变量/默认值 */
+    public static String model() {
+        String m = modelCache;
+        if (m != null) return m;
+        String stored = null;
+        try { stored = loadModel(); } catch (Exception ignored) {}
+        if (stored == null || stored.trim().isEmpty()) stored = ENV_MODEL;
+        modelCache = stored.trim();
+        return modelCache;
+    }
+
+    /** 切换模型：校验本机是否装了，再写进 app_settings */
+    public static synchronized void setModel(String name) throws Exception {
+        String m = name == null ? "" : name.trim();
+        if (m.isEmpty()) throw new IllegalArgumentException("模型名不能为空");
+        List<String> tags = tags();
+        if (tags != null && !hasModel(tags, m)) {
+            throw new IllegalArgumentException("本机没有这个模型：" + m + "（先 ollama pull）");
+        }
+        Connection conn = One.getConn();
+        if (conn == null) throw new IllegalStateException("数据库连不上，模型设置没保存");
+        try {
+            ensureSettings(conn);
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO app_settings (k, v) VALUES ('ai_model', ?) ON DUPLICATE KEY UPDATE v = VALUES(v)")) {
+                ps.setString(1, m);
+                ps.executeUpdate();
+            }
+        } finally {
+            try { conn.close(); } catch (Exception ignored) {}
+        }
+        modelCache = m;
+    }
+
+    private static String loadModel() {
+        Connection conn = One.getConn();
+        if (conn == null) return null;
+        try {
+            ensureSettings(conn);
+            try (PreparedStatement ps = conn.prepareStatement("SELECT v FROM app_settings WHERE k = 'ai_model'");
+                 ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        } catch (Exception e) {
+            return null;
+        } finally {
+            try { conn.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    static void ensureSettings(Connection conn) {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE IF NOT EXISTS app_settings (k VARCHAR(48) PRIMARY KEY, v VARCHAR(255) NOT NULL)");
+        } catch (Exception ignored) {}
+    }
+
     // ==================== 状态 ====================
 
     /** Ollama 是否在跑、默认模型是否存在 */
     public static String statusJson() {
         List<String> models = tags();
         boolean up = models != null;
-        boolean has = up && hasModel(models, MODEL);
+        String cur = model();
+        boolean has = up && hasModel(models, cur);
         StringBuilder b = new StringBuilder();
         b.append("{\"ok\":").append(up && has)
          .append(",\"ollama\":").append(up)
-         .append(",\"model\":\"").append(Json.esc(MODEL)).append("\"")
+         .append(",\"model\":\"").append(Json.esc(cur)).append("\"")
          .append(",\"models\":[");
         if (models != null) {
             for (int i = 0; i < models.size(); i++) {
@@ -120,7 +182,7 @@ public class AiAssistant {
             "- goods 用简短中文概括，例如\"牛肉面\"\"打车\"\"奶茶\"\n" +
             "- 如果完全不是消费描述，返回 {\"items\":[]}";
 
-        String content = chat(sys, text);
+        String content = chatJson(sys, text);
         Map<String, Object> root = Json.map(Json.parse(extractJson(content)));
         List<Item> items = new ArrayList<>();
         for (Object o : Json.list(root.get("items"))) {
@@ -250,7 +312,7 @@ public class AiAssistant {
                 }
                 payload.append(']');
 
-                Map<String, Object> root = Json.map(Json.parse(extractJson(chat(sys, payload.toString()))));
+                Map<String, Object> root = Json.map(Json.parse(extractJson(chatJson(sys, payload.toString()))));
                 boolean[] used = new boolean[to - from];
                 for (Object o : Json.list(root.get("items"))) {
                     Map<String, Object> m = Json.map(o);
@@ -287,9 +349,11 @@ public class AiAssistant {
     // ==================== 建议 ====================
 
     public static String advice() throws Exception {
-        String sys = "你是一个语气轻松、不说教的个人记账助手。根据用户本月数据，用中文给 2-3 句消费建议，" +
-                "直接说重点，不要客套，不要罗列数据。只输出 JSON：{\"advice\":\"...\"}";
-        String content = chat(sys, monthSummary());
+        String sys = "你是一个语气轻松、不说教的个人记账助手。用户会给你本月汇总和最近 8 笔记录（含他刚刚记进来的）。" +
+                "先用最多 2 句点评最近这几笔里值得注意的地方；再给 1 句本月整体建议。" +
+                "硬性要求：提到消费时必须原样照抄数据里的商品名和金额，不许改写、翻译、概括成别的词" +
+                "（例如数据里是「橙子 37」，就只能说橙子，不能写成橘子、水果）；不许出现数据里没有的消费。只输出 JSON：{\"advice\":\"...\"}";
+        String content = chatJson(sys, monthSummary());
         Map<String, Object> root = Json.map(Json.parse(extractJson(content)));
         String a = Json.str(root.get("advice"));
         if (a == null || a.trim().isEmpty()) a = content.trim();
@@ -305,6 +369,7 @@ public class AiAssistant {
         double total = 0, daily = 0, special = 0, income = 0;
         int recordDays = 0;
         List<String> top = new ArrayList<>();
+        List<String> recent = new ArrayList<>();
 
         Connection conn = One.getConn();
         if (conn != null) {
@@ -325,6 +390,16 @@ public class AiAssistant {
                 rs = st.executeQuery("SELECT goods, price FROM " + table + " ORDER BY price DESC LIMIT 5");
                 while (rs.next()) {
                     top.add(rs.getString(1) + " ¥" + String.format("%.0f", rs.getDouble(2)));
+                }
+                rs.close();
+
+                // 最近 8 笔：建议要能点到用户刚记进去的那几笔
+                rs = st.executeQuery("SELECT date, goods, price, cat FROM " + table + " ORDER BY date DESC LIMIT 8");
+                while (rs.next()) {
+                    String cat = rs.getString(4);
+                    recent.add(rs.getString(1) + " " + rs.getString(2) +
+                            " ¥" + String.format("%.0f", rs.getDouble(3)) +
+                            (cat == null || cat.isEmpty() ? "" : "（" + cat + "）"));
                 }
                 rs.close();
             } catch (Exception e) {
@@ -362,6 +437,9 @@ public class AiAssistant {
         if (!top.isEmpty()) {
             b.append("；金额前五：").append(String.join("、", top));
         }
+        if (!recent.isEmpty()) {
+            b.append("；最近 8 笔（新→旧）：").append(String.join("；", recent));
+        }
         b.append("。");
         return b.toString();
     }
@@ -369,7 +447,10 @@ public class AiAssistant {
     // ==================== Ollama 调用 ====================
 
     private static String chat(String system, String user) throws Exception {
-        String body = "{\"model\":\"" + Json.esc(MODEL) + "\",\"stream\":false,\"format\":\"json\"," +
+        String m = model();
+        // qwen3 系列默认会先自言自语，必须关掉思考，否则 JSON 容易夹带解释
+        String think = m.toLowerCase().startsWith("qwen3") ? "\"think\":false," : "";
+        String body = "{\"model\":\"" + Json.esc(m) + "\",\"stream\":false,\"format\":\"json\"," + think +
                 "\"options\":{\"temperature\":0.2}," +
                 "\"messages\":[{\"role\":\"system\",\"content\":\"" + Json.esc(system) + "\"}," +
                 "{\"role\":\"user\",\"content\":\"" + Json.esc(user) + "\"}]}";
@@ -391,6 +472,24 @@ public class AiAssistant {
             System.out.println("[AI RAW] " + content);
         }
         return content;
+    }
+
+    /** 先正常问一次；不是合法 JSON 就换更硬的指令重试一次（模型偶尔会跑偏） */
+    private static String chatJson(String system, String user) throws Exception {
+        String first = chat(system, user);
+        if (isJson(first)) return first;
+        String strict = system + "\n只输出一个 JSON 对象。不要解释，不要 markdown 代码块，不要多余文字。";
+        String second = chat(strict, user);
+        if (!isJson(second)) throw new IOException("AI 返回的不是合法 JSON，换个模型试试");
+        return second;
+    }
+
+    private static boolean isJson(String s) {
+        if (s == null) return false;
+        int a = s.indexOf('{');
+        int b = s.lastIndexOf('}');
+        if (a < 0 || b <= a) return false;
+        try { Json.parse(s.substring(a, b + 1)); return true; } catch (Exception e) { return false; }
     }
 
     /** 模型有时会包 ```json 或加解释，截取第一个 { 到最后一个 } */
