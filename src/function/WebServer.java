@@ -35,9 +35,10 @@ public class WebServer {
         srv.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
         srv.start();
 
-        // 启动时自愈一次表结构（缺 cat 列就补），失败不影响服务
+        // 启动时自愈一次表结构（缺 cat 列就补，缺 id 主键就补），失败不影响服务
         try (Connection c = One.getConn()) {
             ensureCatColumn(c);
+            ensureIdColumn(c);
         } catch (Exception e) {
             System.out.println("表结构检查跳过：" + e.getMessage());
         }
@@ -72,6 +73,7 @@ public class WebServer {
                 case "/splash-done"  -> { splashPending = false; redirect(ex, "/main"); }
                 case "/main"         -> html(ex, mainPage(ex.getRequestURI().getQuery()));
                 case "/save"         -> { if ("POST".equals(method)) handleSavePost(ex, parseForm(ex)); else redirect(ex, "/main#entry"); }
+                case "/del"          -> { if ("POST".equals(method)) handleDel(ex, parseForm(ex)); else redirect(ex, "/main#details"); }
                 case "/income"       -> { if ("POST".equals(method)) handleIncomePost(ex, parseForm(ex)); else redirect(ex, "/main#income"); }
                 case "/query"        -> { if ("POST".equals(method)) handleDetailPost(ex); else redirect(ex, "/main#details"); }
                 case "/budget"       -> { if ("POST".equals(method)) handleBudgetPost(ex, parseForm(ex)); else redirect(ex, "/main#budget"); }
@@ -132,6 +134,11 @@ public class WebServer {
         redirect(ex, "/main?" + q + "#" + section);
     }
 
+    /** 成功回跳 + 具体提示（顶部闪一条，非错误色） */
+    private static void backToOk(HttpExchange ex, String section, String text) throws IOException {
+        redirect(ex, "/main?ok=" + java.net.URLEncoder.encode(text, StandardCharsets.UTF_8) + "#" + section);
+    }
+
     // ==================== 登录 ====================
 
     // ==================== 存入消费 ====================
@@ -171,11 +178,35 @@ public class WebServer {
         int num1 = "1".equals(typeStr) ? 1 : 2;
         String cat = Cat.clean(f.get("cat"), goods);
 
+        // 带 id = 修改已有记录（月份在表单里锁死，不跨月搬家）
+        int editId = 0;
+        String idStr = f.get("id");
+        if (idStr != null && !idStr.trim().isEmpty()) {
+            try { editId = Integer.parseInt(idStr.trim()); } catch (NumberFormatException ignored) { editId = 0; }
+        }
+
         String table = String.format("table_%02d", month);
         Connection conn = One.getConn();
         if (conn == null) { backTo(ex, "entry", "数据库连接失败"); return; }
         try {
             ensureCatColumn(conn);
+            ensureIdColumn(conn);
+            if (editId > 0) {
+                PreparedStatement ps = One.getPreparedStmt(conn,
+                    "UPDATE " + table + " SET date = ?, goods = ?, price = ?, num_1 = ?, cat = ? WHERE id = ?");
+                ps.setInt(1, day);
+                ps.setString(2, goods.trim());
+                ps.setDouble(3, price);
+                ps.setInt(4, num1);
+                ps.setString(5, cat);
+                ps.setInt(6, editId);
+                int n = ps.executeUpdate();
+                ps.close();
+                conn.close();
+                if (n > 0) backToOk(ex, "details", "已修改 1 笔");
+                else backTo(ex, "details", "没找到这条记录，可能已经被删了");
+                return;
+            }
             PreparedStatement ps = One.getPreparedStmt(conn,
                 "INSERT INTO " + table + " (date, goods, price, num_1, cat) VALUES (?, ?, ?, ?, ?)");
             ps.setInt(1, day);
@@ -186,11 +217,42 @@ public class WebServer {
             ps.executeUpdate();
             ps.close();
             conn.close();
-            backTo(ex, "entry", "");
+            backToOk(ex, "entry", "已记一笔");
         } catch (Exception e) {
             conn.close();
             backTo(ex, "entry", "存入失败：" + e.getMessage());
         }
+    }
+
+    /** 删除明细里的一条（按 id 精确定位，不会误删同天同名的其他记录） */
+    private static void handleDel(HttpExchange ex, Map<String, String> f) throws IOException {
+        int id, month;
+        try {
+            id = Integer.parseInt(f.get("id"));
+            month = Integer.parseInt(f.get("month"));
+        } catch (Exception e) {
+            backTo(ex, "details", "删除参数不对");
+            return;
+        }
+        if (month < 1 || month > 12) { backTo(ex, "details", "月份不对"); return; }
+
+        Connection conn = One.getConn();
+        if (conn == null) { backTo(ex, "details", "数据库连接失败"); return; }
+        int n = 0;
+        try {
+            ensureIdColumn(conn);
+            PreparedStatement ps = One.getPreparedStmt(conn,
+                "DELETE FROM " + String.format("table_%02d", month) + " WHERE id = ?");
+            ps.setInt(1, id);
+            n = ps.executeUpdate();
+            ps.close();
+        } catch (Exception ignored) {
+            n = 0;
+        } finally {
+            try { conn.close(); } catch (Exception ignored) { }
+        }
+        if (n > 0) backToOk(ex, "details", "已删除 1 笔");
+        else backTo(ex, "details", "没找到这条记录，可能已经删过");
     }
 
     private static void handleIncomePost(HttpExchange ex, Map<String, String> f) throws Exception {
@@ -350,6 +412,40 @@ public class WebServer {
             st.close();
         } catch (Exception e) { /* 表已存在则忽略 */ }
         ensureCatColumn(conn);
+        ensureIdColumn(conn);
+    }
+
+    /**
+     * 月度表补一列自增主键 id。
+     * 老表没有主键，删除只能按 (日期, 商品名) 猜，同一天买两次同样的东西会一次删掉两条。
+     */
+    static void ensureIdColumn(Connection conn) {
+        if (conn == null) return;
+        for (int m = 1; m <= 12; m++) {
+            String t = String.format("table_%02d", m);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?")) {
+                    ps.setString(1, t);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next() || rs.getInt(1) == 0) continue;
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='id'")) {
+                    ps.setString(1, t);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next() && rs.getInt(1) > 0) continue;
+                    }
+                }
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE " + t + " ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST");
+                    System.out.println("已补主键 " + t + ".id");
+                }
+            } catch (Exception ignore) {
+                /* 加不上（比如已经有别的主键）就跳过，不影响其他表 */
+            }
+        }
     }
 
     /** 拼成 JS 字符串字面量（带引号），用于把后端的提示交给前端弹 */
@@ -667,13 +763,52 @@ public class WebServer {
 
     private static String mainPage() { return mainPage(null); }
 
+    /** 取一条待修改的记录：{id, month, day, goods, price, num1, cat}；找不到返回 null */
+    private static String[] loadRecord(String idStr, String monthStr) {
+        int id, month;
+        try {
+            id = Integer.parseInt(idStr.trim());
+            month = Integer.parseInt(monthStr == null ? "" : monthStr.trim());
+        } catch (Exception e) {
+            return null;
+        }
+        if (month < 1 || month > 12) return null;
+
+        Connection conn = One.getConn();
+        if (conn == null) return null;
+        try {
+            ensureIdColumn(conn);
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT date, goods, price, num_1, cat FROM " + String.format("table_%02d", month) + " WHERE id = ?")) {
+                ps.setInt(1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) return null;
+                    return new String[]{ String.valueOf(id), String.valueOf(month),
+                            String.valueOf(rs.getInt(1)), rs.getString(2),
+                            String.format("%.2f", rs.getDouble(3)), String.valueOf(rs.getInt(4)),
+                            rs.getString(5) == null ? "其他" : rs.getString(5) };
+                }
+            }
+        } catch (Exception e) {
+            return null;
+        } finally {
+            try { conn.close(); } catch (Exception ignored) { }
+        }
+    }
+
     private static String mainPage(String rawQuery) {
         Overview ov = Overview.load();
         Map<String, String> q = rawQuery == null || rawQuery.isEmpty()
             ? new HashMap<>() : parseQuery(rawQuery);
         String flash = "";
-        if (q.get("err") != null) flash = "<script>window.__flash=[" + jsStr(q.get("err")) + ",true];</script>";
-        else if (q.get("ok") != null) flash = "<script>window.__flash=['✓ 已保存',false];</script>";
+        if (q.get("err") != null) {
+            flash = "<script>window.__flash=[" + jsStr(q.get("err")) + ",true];</script>";
+        } else if (q.get("ok") != null) {
+            String ok = q.get("ok");
+            String text = "1".equals(ok) ? "✓ 已保存" : ok;
+            flash = "<script>window.__flash=[" + jsStr(text) + ",false];</script>";
+        }
+        String[] editRec = q.get("edit") == null ? null : loadRecord(q.get("edit"), q.get("m"));
         String ymd = Date_time.getYear() + "-" + String.format("%02d", ov.month);
         String table = String.format("table_%02d", ov.month);
         double balance = ov.income - ov.expense;
@@ -765,7 +900,7 @@ public class WebServer {
           .append("<td class='sum'>合计 <b>¥").append(String.format("%,.2f", ov.expense)).append("</b></td></tr></tfoot></table></section>");
 
         sb.append("</section>");
-        sb.append(Sections.entry());
+        sb.append(Sections.entry(editRec));
         sb.append(Sections.income(ov));
         sb.append(Sections.details(ov));
         sb.append(Sections.budget(ov));
@@ -893,7 +1028,7 @@ public class WebServer {
         sb.append("</nav><div class='railBot'>")
           .append("<div class='stat'><span>DATABASE</span><span class='dot'>已连接</span></div>")
           .append("<div class='stat'><span>AI ENGINE</span><span class='dot' id='aiEngine'>就绪</span></div>")
-          .append("<div class='stat'><span>BUILD</span><span>v3.0.1</span></div>")
+          .append("<div class='stat'><span>BUILD</span><span>v3.0.2</span></div>")
           .append("</div></aside>");
         return sb.toString();
     }

@@ -35,26 +35,59 @@ public final class Sections {
 
     /* ---------------- 记一笔 ---------------- */
     public static String entry() {
+        return entry(null);
+    }
+
+    /**
+     * 记一笔。rec 为 null 时是新增；否则是 /main?edit=ID 带过来的
+     * {id, month, day, goods, price, num1, cat}，表单预填成「修改」模式。
+     */
+    public static String entry(String[] rec) {
+        boolean editing = rec != null;
         int today = Date_time.getDay();
         int month = Date_time.getMonth();
+        int selMonth = editing ? Integer.parseInt(rec[1]) : month;
+        int selDay = editing ? Integer.parseInt(rec[2]) : today;
+        int selType = editing ? Integer.parseInt(rec[5]) : 2;
+
         StringBuilder m = new StringBuilder();
         for (int i = 1; i <= 12; i++) {
-            m.append("<option value='").append(i).append("'").append(i == month ? " selected" : "")
-             .append(">").append(i).append(" 月").append(i == month ? "（本月）" : "").append("</option>");
+            m.append("<option value='").append(i).append("'").append(i == selMonth ? " selected" : "")
+             .append(">").append(i).append(" 月").append(i == selMonth ? "（本月）" : "").append("</option>");
         }
         StringBuilder cats = new StringBuilder();
-        for (String c : Cat.ALL) cats.append("<option>").append(c).append("</option>");
+        for (String c : Cat.ALL) {
+            cats.append("<option").append(editing && c.equals(rec[6]) ? " selected" : "").append(">")
+                .append(c).append("</option>");
+        }
 
         return "<section class='sec' id='entry'>" +
-            head("02", "记一笔", "ENTRY / 存进当月表", "") +
+            head("02", editing ? "改一笔" : "记一笔",
+                 editing ? "ENTRY / 修改第 " + rec[0] + " 条记录" : "ENTRY / 存进当月表", "") +
+            (editing
+                ? "<div class='editBar'>正在修改：<b>" + esc(rec[3]) + "</b> ¥" + esc(rec[4]) +
+                  "（" + selDay + " 日 · " + esc(rec[6]) + "）<a class='link' href='/main#details'>取消修改</a></div>"
+                : "") +
             "<div class='panel pad'><form class='formGrid' method='post' action='/save'>" +
-            "<label class='fld'><span>商品名称</span><input name='goods' required placeholder='例如：牛肉面' autocomplete='off'></label>" +
-            "<label class='fld'><span>价格（元）</span><input name='price' type='number' step='0.01' min='0.01' required placeholder='25.5'></label>" +
+            (editing
+                ? "<input type='hidden' name='id' value='" + rec[0] + "'>" +
+                  "<input type='hidden' name='month' value='" + selMonth + "'>"
+                : "") +
+            "<label class='fld'><span>商品名称</span><input name='goods' required placeholder='例如：牛肉面' autocomplete='off' value='" +
+                (editing ? esc(rec[3]) : "") + "'></label>" +
+            "<label class='fld'><span>价格（元）</span><input name='price' type='number' step='0.01' min='0.01' required placeholder='25.5' value='" +
+                (editing ? esc(rec[4]) : "") + "'></label>" +
             "<label class='fld'><span>类别</span><select name='cat'>" + cats + "</select></label>" +
-            "<label class='fld'><span>性质</span><select name='type'><option value='1'>日常</option><option value='2'>特殊</option></select></label>" +
-            "<label class='fld'><span>月份</span><select name='month'>" + m + "</select></label>" +
-            "<label class='fld'><span>日期（日）</span><input name='day' type='number' min='1' max='31' value='" + today + "'></label>" +
-            "<div class='fld fldBtn'><button class='btn solid' type='submit'>确认存入</button></div>" +
+            "<label class='fld'><span>性质</span><select name='type'>" +
+                "<option value='1'" + (selType == 1 ? " selected" : "") + ">日常</option>" +
+                "<option value='2'" + (selType == 2 ? " selected" : "") + ">特殊</option></select></label>" +
+            (editing
+                ? "<label class='fld'><span>月份</span><input value='" + selMonth + " 月（修改时不能换月）' disabled></label>"
+                : "<label class='fld'><span>月份</span><select name='month'>" + m + "</select></label>") +
+            "<label class='fld'><span>日期（日）</span><input name='day' type='number' min='1' max='31' value='" + selDay + "'></label>" +
+            "<div class='fld fldBtn'><button class='btn solid' type='submit'>" +
+                (editing ? "保存修改" : "确认存入") + "</button>" +
+                (editing ? "<a class='btn' href='/main#details'>取消</a>" : "") + "</div>" +
             "</form></div></section>";
     }
 
@@ -116,11 +149,12 @@ public final class Sections {
         if (conn != null) {
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery(
-                     "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC LIMIT 400")) {
+                     "SELECT id, date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC, id DESC LIMIT 400")) {
                 while (rs.next()) {
-                    rows.add(new String[]{ String.valueOf(rs.getInt(1)), rs.getString(2),
-                            String.format("%.2f", rs.getDouble(3)), String.valueOf(rs.getInt(4)),
-                            rs.getString(5) == null ? "其他" : rs.getString(5) });
+                    rows.add(new String[]{ String.valueOf(rs.getInt(1)), String.valueOf(rs.getInt(2)),
+                            rs.getString(3), String.format("%.2f", rs.getDouble(4)),
+                            String.valueOf(rs.getInt(5)),
+                            rs.getString(6) == null ? "其他" : rs.getString(6) });
                 }
             } catch (Exception ignore) { /* 表不存在 */ }
             try { conn.close(); } catch (Exception ignored) {}
@@ -140,7 +174,7 @@ public final class Sections {
 
         sb.append("<div class='panel'><table><thead><tr><th style='width:92px'>日期</th>")
           .append("<th style='width:110px'>分类</th><th style='width:72px'>性质</th><th>备注</th>")
-          .append("<th style='width:120px;text-align:right'>金额</th><th style='width:64px'></th></tr></thead><tbody>");
+          .append("<th style='width:120px;text-align:right'>金额</th><th style='width:96px;text-align:right'>操作</th></tr></thead><tbody>");
         if (rows.isEmpty()) {
             sb.append("<tr><td colspan='6' class='empty'>本月还没有记录</td></tr>");
         }
@@ -148,18 +182,19 @@ public final class Sections {
         for (String[] r : rows) {
             sb.append(shown >= 20 ? "<tr class='more' hidden>" : "<tr>");
             shown++;
-            sb.append("<td class='dt'>").append(String.format("%02d", Integer.parseInt(r[0]))).append(" 日</td>")
-              .append("<td class='tag' data-cat='").append(esc(r[4])).append("'><span class='tick'></span>")
-              .append(esc(r[4])).append("</td>")
-              .append(WebServer.typeCell(Integer.parseInt(r[3])))
-              .append("<td class='note'>").append(esc(r[1])).append("</td>")
-              .append("<td class='amt out'>-¥").append(r[2]).append("</td>")
-              .append("<td><form method='post' action='/query'>")
-              .append("<input type='hidden' name='action' value='delete'>")
+            sb.append("<td class='dt'>").append(String.format("%02d", Integer.parseInt(r[1]))).append(" 日</td>")
+              .append("<td class='tag' data-cat='").append(esc(r[5])).append("'><span class='tick'></span>")
+              .append(esc(r[5])).append("</td>")
+              .append(WebServer.typeCell(Integer.parseInt(r[4])))
+              .append("<td class='note'>").append(esc(r[2])).append("</td>")
+              .append("<td class='amt out'>-¥").append(r[3]).append("</td>")
+              .append("<td class='rowAct'>")
+              .append("<a class='link' href='/main?edit=").append(r[0]).append("&amp;m=").append(ov.month)
+              .append("#entry' title='修改这一条'>改</a>")
+              .append("<form method='post' action='/del' onsubmit=\"return confirm('删除这条记录？')\">")
+              .append("<input type='hidden' name='id' value='").append(r[0]).append("'>")
               .append("<input type='hidden' name='month' value='").append(ov.month).append("'>")
-              .append("<input type='hidden' name='day' value='").append(r[0]).append("'>")
-              .append("<input type='hidden' name='goods' value='").append(esc(r[1])).append("'>")
-              .append("<button class='link danger' type='submit'>删除</button></form></td></tr>");
+              .append("<button class='link danger' type='submit' title='删除这一条'>删</button></form></td></tr>");
         }
         sb.append("</tbody></table>");
         if (rows.size() > 20) {
@@ -236,7 +271,7 @@ public final class Sections {
             "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
             "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
-            "<dt>版本</dt><dd>v3.0.1 · 补丁 01（2026-11-16）</dd>" +
+            "<dt>版本</dt><dd>v3.0.2 · 补丁 02（2026-11-16）</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }

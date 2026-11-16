@@ -512,10 +512,28 @@ select option:checked{background:#ff8a1e;color:#000}
 }
 
 /* 行内删除按钮 */
-.link{border:0;background:none;padding:0;cursor:pointer;color:var(--faint);font-size:11px;font-family:var(--zh)}
+.link{border:0;background:none;padding:0;cursor:pointer;color:var(--faint);font-size:11px;font-family:var(--zh);text-decoration:none}
 .link:hover{color:var(--ink)}
 .link.danger:hover{color:var(--expense)}
 td.empty,.empty{text-align:center;color:var(--faint);padding:22px 0}
+
+/* 明细行尾的「改 / 删」 */
+.rowAct{text-align:right;white-space:nowrap;width:96px}
+.rowAct form{display:inline;margin:0}
+.rowAct .link{margin-left:12px;letter-spacing:.04em;color:var(--dim);font-size:11.5px}
+.rowAct .link:hover{color:var(--accent)}
+.rowAct .link.danger:hover{color:var(--expense)}
+
+/* 记一笔的「正在修改」提示条 */
+.editBar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin:0 0 10px;padding:8px 12px;border:1px solid rgba(255,138,30,.45);
+  background:rgba(255,138,30,.08);color:var(--dim);
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+}
+.editBar b{color:var(--ink);font-weight:400}
+.editBar .link{margin-left:auto;color:var(--accent)}
+.editBar .link:hover{color:var(--ink)}
 
 /* 顶部闪现提示 */
 .flash{

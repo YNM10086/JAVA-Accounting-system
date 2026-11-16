@@ -256,6 +256,21 @@
       }).catch(() => { busy = false; orb.classList.remove("say"); setStatus("请求失败，检查服务是否在运行", true); });
     }
 
+    /* 记完一笔要让总览/明细/预算都跟着变。
+       整页刷新最稳（图表由 overview.js 用服务端内嵌数据画，局部换 DOM 会把图弄空），
+       刷新前把「已记几笔 + 建议 + 滚动位置」放进 sessionStorage，回来后接着显示。 */
+    function reloadAfterSave(saved, advice, note) {
+      try {
+        sessionStorage.setItem("bk_after_save", JSON.stringify({
+          saved: saved || 0,
+          advice: advice || "",
+          note: note || "",
+          scroll: (document.querySelector(".view") || {}).scrollTop || 0,
+        }));
+      } catch (e) { /* 存不了就算了，刷新照样能刷新数据 */ }
+      location.reload();
+    }
+
     function doSave() {
       if (busy) return;
       const items = collect();
@@ -264,15 +279,7 @@
       post("/ai/save", { items }).then((j) => {
         busy = false;
         if (!j.ok) { setStatus(j.error || "入库失败", true); return; }
-        prev.innerHTML = "";
-        const done = document.createElement("div");
-        done.className = "aiDone";
-        done.innerHTML = "<b>✓</b> 已记 " + j.saved + " 笔";
-        prev.appendChild(done);
-        prev.hidden = false;
-        setStatus("");
-        if (j.advice) showAdvice(j.advice);
-        else if (j.adviceError) setStatus("已记 " + j.saved + " 笔，建议没拿到：" + j.adviceError, true);
+        reloadAfterSave(j.saved, j.advice, "");
       }).catch(() => { busy = false; setStatus("请求失败，检查服务是否在运行", true); });
     }
 
@@ -284,7 +291,8 @@
       post("/ai/classify", {}).then((j) => {
         busy = false; orb.classList.remove("say");
         if (!j.ok) { setStatus(j.error || "分类失败", true); return; }
-        setStatus(j.changed > 0 ? "已更新 " + j.changed + " 条分类" : "没有需要改的，分类已经是最新");
+        if (j.changed > 0) { reloadAfterSave(0, "", "已更新 " + j.changed + " 条分类"); return; }
+        setStatus("没有需要改的，分类已经是最新");
       }).catch(() => { busy = false; orb.classList.remove("say"); setStatus("请求失败，检查服务是否在运行", true); });
     }
 
@@ -334,6 +342,33 @@
       .catch(() => setEngine(false, ""));
 
     idleLoop(true);
+
+    /* 刚记完一笔整页刷新回来：把面板、结果、建议、滚动位置接上（数据已经是新的） */
+    (function restoreAfterSave() {
+      let raw = null;
+      try {
+        raw = sessionStorage.getItem("bk_after_save");
+        sessionStorage.removeItem("bk_after_save");
+      } catch (e) { return; }
+      if (!raw) return;
+      let s = null;
+      try { s = JSON.parse(raw); } catch (e) { return; }
+      setTimeout(() => {
+        openPanel(false);
+        if (s.saved > 0) {
+          prev.innerHTML = "";
+          const done = document.createElement("div");
+          done.className = "aiDone";
+          done.innerHTML = "<b>✓</b> 已记 " + s.saved + " 笔 · 数据已刷新";
+          prev.appendChild(done);
+          prev.hidden = false;
+        }
+        if (s.advice) showAdvice(s.advice);
+        else if (s.note) flash(s.note, false);
+        const view = document.querySelector(".view");
+        if (view && s.scroll) view.scrollTop = s.scroll;
+      }, 160);
+    })();
   }
 
 
