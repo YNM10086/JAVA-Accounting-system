@@ -236,7 +236,7 @@ public final class Sections {
             "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
             "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
-            "<dt>版本</dt><dd>v3.0.0 · 单页结构</dd>" +
+            "<dt>版本</dt><dd>v3.0.1 · 补丁 01（2026-11-16）</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }

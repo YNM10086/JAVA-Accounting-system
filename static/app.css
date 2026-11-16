@@ -499,6 +499,12 @@
 .kv select:hover{border-color:rgba(155,180,225,.32)}
 .kv select:focus{outline:none;border-color:rgba(255,138,30,.6);background:rgba(255,138,30,.04)}
 .kv dd .hint{display:inline;margin-left:10px}
+
+/* 原生 <select> 的弹层是系统画的：不显式给 option 上底色，
+   就是"白底 + 白字"整个列表一片空白（模型下拉踩过这个坑） */
+select{color-scheme:dark}
+select option{background:#0a1220;color:#e6ebf7}
+select option:checked{background:#ff8a1e;color:#000}
 .kv dd.pills{display:flex;flex-wrap:wrap;gap:6px}
 .kv .pill{
   font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim);
