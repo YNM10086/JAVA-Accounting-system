@@ -51,3 +51,4 @@ tools/*/out/
 UPdateVersion/.stage/
 UPdateVersion/backup/
 UPdateVersion/logs/
+UPdateVersion/.last-bump

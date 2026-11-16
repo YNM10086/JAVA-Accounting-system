@@ -24,6 +24,11 @@
 .PARAMETER Rollback
     还原最近一次备份（不编译、不更新）。
 
+.PARAMETER Bump
+    先把版本号往上推一格（v3.0.x / 补丁 NN / 今天日期 / desktop 版本），再编译更新。
+    源码内容和上次发布一样时自动跳过（不会一路 3.0.2、3.0.3 往上涨）。
+    发补丁用同目录的 update-and-bump.bat，普通更新用 update-<日期>.bat。
+
 .PARAMETER KeepBackups
     不清理旧备份（默认只保留最近 5 份）。
 
@@ -42,6 +47,7 @@ param(
     [string]$InstallDir,
     [switch]$NoRestart,
     [switch]$Rollback,
+    [switch]$Bump,
     [switch]$KeepBackups,
     [int]$KeepCount = 5,
     [switch]$Elevated
@@ -173,6 +179,7 @@ function Assert-Writable {
         if ($InstallDir) { $argList += @('-InstallDir', ('"' + $InstallDir + '"')) }
         if ($NoRestart) { $argList += '-NoRestart' }
         if ($Rollback) { $argList += '-Rollback' }
+        if ($Bump) { $argList += '-Bump' }
         Start-Process powershell -Verb RunAs -ArgumentList ($argList -join ' ')
         Say '   已在新的管理员窗口中继续，这个窗口可以关掉了。' 'Yellow'
         exit 0
@@ -243,7 +250,7 @@ if ($Rollback) {
 
 # ---------------------------------------------------------------- 1. 环境
 
-Step '1/6 检查环境'
+Step '1/7 检查环境'
 
 foreach ($need in @('src', 'lib', 'static')) {
     if (-not (Test-Path (Join-Path $root $need))) { Fail "项目里缺 $need 目录：$root" }
@@ -266,9 +273,23 @@ Say ("   安装目录：{0}" -f $installDir)
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
 
-# ---------------------------------------------------------------- 2. 编译
+# ---------------------------------------------------------------- 2. 版本号
 
-Step '2/6 编译 Java'
+Step '2/7 版本号'
+
+if ($Bump) {
+    $bumpOut = & (Join-Path $here 'bump-version.ps1') -Root $root
+    foreach ($line in @($bumpOut)) { Say ('   ' + $line) }
+    if ($LASTEXITCODE -ne 0) {
+        Fail '版本号没能推上去（见上面提示）。不想推版本号就去掉 -Bump 再更新。'
+    }
+} else {
+    Say '   未指定 -Bump，版本号保持原样（发补丁请双击 update-and-bump.bat）' 'DarkGray'
+}
+
+# ---------------------------------------------------------------- 3. 编译
+
+Step '3/7 编译 Java'
 
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 $stageClasses = Join-Path $stage 'classes'
@@ -291,9 +312,9 @@ foreach ($must in @('System\The_main.class', 'function\WebServer.class')) {
 }
 Say ("   产物 " + (Get-ChildItem $stageClasses -Recurse -File).Count + " 个 class")
 
-# ---------------------------------------------------------------- 3. 暂存
+# ---------------------------------------------------------------- 4. 暂存
 
-Step '3/6 暂存静态资源与依赖'
+Step '4/7 暂存静态资源与依赖'
 
 $stageStatic = Join-Path $stage 'static'
 $stageLib = Join-Path $stage 'lib'
@@ -302,9 +323,9 @@ Copy-Item (Join-Path $root 'static\*') $stageStatic -Recurse -Force
 Copy-Item (Join-Path $root 'lib\*.jar') $stageLib -Force
 Say ("   static {0} 个文件 / lib {1} 个 jar" -f (Get-ChildItem $stageStatic -Recurse -File).Count, (Get-ChildItem $stageLib -File).Count)
 
-# ---------------------------------------------------------------- 4. 关闭 + 备份
+# ---------------------------------------------------------------- 5. 关闭 + 备份
 
-Step '4/6 关闭软件并备份旧版本'
+Step '5/7 关闭软件并备份旧版本'
 
 $runtimeDir = Join-Path $installDir 'resources\runtime'
 Assert-Writable $runtimeDir
@@ -319,9 +340,9 @@ foreach ($name in @('classes', 'static', 'lib')) {
 $bkSize = ((Get-ChildItem $backupDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
 Say ("   备份 {0}（{1:N1} MB）" -f $backupDir, $bkSize)
 
-# ---------------------------------------------------------------- 5. 写入
+# ---------------------------------------------------------------- 6. 写入
 
-Step '5/6 写入安装目录'
+Step '6/7 写入安装目录'
 
 foreach ($name in @('classes', 'static', 'lib')) {
     Invoke-Mirror (Join-Path $stage $name) (Join-Path $runtimeDir $name)
@@ -332,9 +353,9 @@ if (-not (Test-Path (Join-Path $runtimeDir 'classes\function\WebServer.class')))
     Fail "写入后校验失败：$runtimeDir\classes\function\WebServer.class 不存在。可用 rollback.bat 还原。"
 }
 
-# ---------------------------------------------------------------- 6. 收尾
+# ---------------------------------------------------------------- 7. 收尾
 
-Step '6/6 收尾'
+Step '7/7 收尾'
 Remove-OldBackups
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 
