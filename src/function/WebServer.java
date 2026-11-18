@@ -84,6 +84,8 @@ public class WebServer {
                     try { if (qp.get("m") != null) mm = Integer.parseInt(qp.get("m")); } catch (Exception ignore) {}
                     json(ex, Overview.load(mm).monthJson());
                 }
+                // 静默刷新用：整页同款数据（含 charts 需要的全年每月）
+                case "/api/overview" -> json(ex, Overview.load().json());
                 case "/export"       -> handleExportData(ex);
                 case "/ai/status"    -> json(ex, AiAssistant.statusJson());
                 case "/ai/parse"     -> { if ("POST".equals(method)) handleAiParse(ex); else json(ex, "{\"ok\":false,\"error\":\"仅支持 POST\"}"); }
@@ -260,13 +262,41 @@ public class WebServer {
         int month = Date_time.getMonth();
         Connection conn = One.getConn();
         if (conn == null) { backTo(ex, "income", "数据库连接失败"); return; }
+
+        String action = f.get("_action");
+        int id = 0;
+        if (f.get("id") != null && !f.get("id").trim().isEmpty()) {
+            try { id = Integer.parseInt(f.get("id").trim()); } catch (NumberFormatException ignored) { id = 0; }
+        }
         try {
             initTable(conn);
             // 删除
-            if ("delete".equals(f.get("_action"))) {
-                int id = Integer.parseInt(f.get("id"));
+            if ("delete".equals(action)) {
+                if (id <= 0) { conn.close(); backTo(ex, "income", "记录编号不对"); return; }
                 PreparedStatement ps = One.getPreparedStmt(conn, "DELETE FROM income_records WHERE id = ?");
                 ps.setInt(1, id); ps.executeUpdate(); ps.close();
+                conn.close();
+                backToOk(ex, "income", "已删除 1 笔收入");
+                return;
+            }
+            // 修改
+            else if ("update".equals(action)) {
+                if (id <= 0) { conn.close(); backTo(ex, "income", "记录编号不对"); return; }
+                int day;
+                try { day = Integer.parseInt(f.get("date")); } catch (Exception e) { day = Date_time.getDay(); }
+                double amount;
+                try { amount = Double.parseDouble(f.get("amount")); } catch (Exception e) { conn.close(); backTo(ex, "income", "金额格式错误"); return; }
+                String desc = f.get("description");
+                if (desc == null) desc = "";
+                PreparedStatement ps = One.getPreparedStmt(conn,
+                    "UPDATE income_records SET date = ?, amount = ?, description = ? WHERE id = ? AND month = ?");
+                ps.setInt(1, day); ps.setDouble(2, amount); ps.setString(3, desc.trim());
+                ps.setInt(4, id); ps.setInt(5, month);
+                int n = ps.executeUpdate(); ps.close();
+                conn.close();
+                if (n > 0) backToOk(ex, "income", "已修改 1 笔收入");
+                else backTo(ex, "income", "没找到这笔收入，可能已经删了");
+                return;
             }
             // 新增
             else {
@@ -283,7 +313,7 @@ public class WebServer {
             }
             conn.close();
         } catch (Exception e) { try { conn.close(); } catch (Exception ignored) {} backTo(ex, "income", e.getMessage()); return; }
-        backTo(ex, "income", "");
+        backToOk(ex, "income", "已记一笔收入");
     }
 
     // ==================== AI 记账（本地 Ollama） ====================
@@ -796,6 +826,33 @@ public class WebServer {
         }
     }
 
+    /** 取一条待修改的收入：{id, date, amount, description}；找不到返回 null */
+    private static String[] loadIncome(String idStr) {
+        int id;
+        try {
+            id = Integer.parseInt(idStr.trim());
+        } catch (Exception e) {
+            return null;
+        }
+
+        Connection conn = One.getConn();
+        if (conn == null) return null;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT date, amount, description FROM income_records WHERE id = ?")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                return new String[]{ String.valueOf(id), String.valueOf(rs.getInt(1)),
+                        String.format("%.2f", rs.getDouble(2)),
+                        rs.getString(3) == null ? "" : rs.getString(3) };
+            }
+        } catch (Exception e) {
+            return null;
+        } finally {
+            try { conn.close(); } catch (Exception ignored) { }
+        }
+    }
+
     private static String mainPage(String rawQuery) {
         Overview ov = Overview.load();
         Map<String, String> q = rawQuery == null || rawQuery.isEmpty()
@@ -809,6 +866,7 @@ public class WebServer {
             flash = "<script>window.__flash=[" + jsStr(text) + ",false];</script>";
         }
         String[] editRec = q.get("edit") == null ? null : loadRecord(q.get("edit"), q.get("m"));
+        String[] incEdit = q.get("iedit") == null ? null : loadIncome(q.get("iedit"));
         String ymd = Date_time.getYear() + "-" + String.format("%02d", ov.month);
         String table = String.format("table_%02d", ov.month);
         double balance = ov.income - ov.expense;
@@ -901,7 +959,7 @@ public class WebServer {
 
         sb.append("</section>");
         sb.append(Sections.entry(editRec));
-        sb.append(Sections.income(ov));
+        sb.append(Sections.income(ov, incEdit));
         sb.append(Sections.details(ov));
         sb.append(Sections.budget(ov));
         sb.append(Sections.settings(ov));
@@ -1028,7 +1086,7 @@ public class WebServer {
         sb.append("</nav><div class='railBot'>")
           .append("<div class='stat'><span>DATABASE</span><span class='dot'>已连接</span></div>")
           .append("<div class='stat'><span>AI ENGINE</span><span class='dot' id='aiEngine'>就绪</span></div>")
-          .append("<div class='stat'><span>BUILD</span><span>v3.0.2</span></div>")
+          .append("<div class='stat'><span>BUILD</span><span>v3.0.3</span></div>")
           .append("</div></aside>");
         return sb.toString();
     }

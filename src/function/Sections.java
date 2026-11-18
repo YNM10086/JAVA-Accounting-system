@@ -93,6 +93,12 @@ public final class Sections {
 
     /* ---------------- 收入 ---------------- */
     public static String income(Overview ov) {
+        return income(ov, null);
+    }
+
+    /** rec 为 null 时是新增；否则是 /main?iedit=ID 带过来的 {id, date, amount, description} */
+    public static String income(Overview ov, String[] rec) {
+        boolean editing = rec != null;
         int today = Date_time.getDay();
         List<String[]> rows = new ArrayList<>();
         double sum = 0;
@@ -114,27 +120,44 @@ public final class Sections {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<section class='sec' id='income'>")
-          .append(head("03", "收入", "INCOME / 本月进账 " + String.format("%,.2f", sum),
-                  "<span class='act'>" + rows.size() + " 笔</span>"))
-          .append("<div class='panel pad'><form class='formGrid formGrid4' method='post' action='/income'>")
-          .append("<label class='fld'><span>日期（日）</span><input name='date' type='number' min='1' max='31' value='")
-          .append(today).append("'></label>")
-          .append("<label class='fld'><span>金额（元）</span><input name='amount' type='number' step='0.01' required placeholder='5000'></label>")
-          .append("<label class='fld'><span>备注</span><input name='description' placeholder='工资 / 兼职 / 红包'></label>")
-          .append("<div class='fld fldBtn'><button class='btn solid' type='submit'>记一笔收入</button></div>")
-          .append("</form></div>");
+          .append(head("03", editing ? "改一笔收入" : "收入",
+                  editing ? "INCOME / 修改第 " + rec[0] + " 条收入" : "INCOME / 本月进账 " + String.format("%,.2f", sum),
+                  "<span class='act'>" + rows.size() + " 笔</span>"));
+        if (editing) {
+            sb.append("<div class='editBar'>正在修改收入：<b>")
+              .append(esc(rec[3].isEmpty() ? "（无备注）" : rec[3])).append("</b> ¥").append(esc(rec[2]))
+              .append("（").append(rec[1]).append(" 日）<a class='link' href='/main#income'>取消修改</a></div>");
+        }
+        sb.append("<div class='panel pad'><form class='formGrid formGrid4' method='post' action='/income'>");
+        if (editing) {
+            sb.append("<input type='hidden' name='_action' value='update'>")
+              .append("<input type='hidden' name='id' value='").append(rec[0]).append("'>");
+        }
+        sb.append("<label class='fld'><span>日期（日）</span><input name='date' type='number' min='1' max='31' value='")
+          .append(editing ? esc(rec[1]) : String.valueOf(today)).append("'></label>")
+          .append("<label class='fld'><span>金额（元）</span><input name='amount' type='number' step='0.01' required placeholder='5000' value='")
+          .append(editing ? esc(rec[2]) : "").append("'></label>")
+          .append("<label class='fld'><span>备注</span><input name='description' placeholder='工资 / 兼职 / 红包' value='")
+          .append(editing ? esc(rec[3]) : "").append("'></label>")
+          .append("<div class='fld fldBtn'><button class='btn solid' type='submit'>")
+          .append(editing ? "保存修改" : "记一笔收入").append("</button>")
+          .append(editing ? "<a class='btn' href='/main#income'>取消</a>" : "")
+          .append("</div></form></div>");
 
         if (!rows.isEmpty()) {
             sb.append("<div class='panel'><table><thead><tr><th style='width:80px'>日期</th>")
-              .append("<th>备注</th><th style='width:140px;text-align:right'>金额</th><th style='width:80px'></th></tr></thead><tbody>");
+              .append("<th>备注</th><th style='width:140px;text-align:right'>金额</th>")
+              .append("<th style='width:96px;text-align:right'>操作</th></tr></thead><tbody>");
             for (String[] r : rows) {
                 sb.append("<tr><td class='dt'>").append(String.format("%02d", Integer.parseInt(r[1]))).append(" 日</td>")
                   .append("<td class='note'>").append(esc(r[3])).append("</td>")
                   .append("<td class='amt in'>+¥").append(r[2]).append("</td>")
-                  .append("<td><form method='post' action='/income'>")
+                  .append("<td class='rowAct'>")
+                  .append("<a class='link' href='/main?iedit=").append(r[0]).append("#income' title='修改这笔收入'>改</a>")
+                  .append("<form method='post' action='/income' onsubmit=\"return confirm('删除这笔收入？')\">")
                   .append("<input type='hidden' name='_action' value='delete'>")
                   .append("<input type='hidden' name='id' value='").append(r[0]).append("'>")
-                  .append("<button class='link danger' type='submit'>删除</button></form></td></tr>");
+                  .append("<button class='link danger' type='submit' title='删除这笔收入'>删</button></form></td></tr>");
             }
             sb.append("</tbody></table></div>");
         }
@@ -271,7 +294,7 @@ public final class Sections {
             "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
             "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
-            "<dt>版本</dt><dd>v3.0.2 · 补丁 02（2026-11-16）</dd>" +
+            "<dt>版本</dt><dd>v3.0.3 · 补丁 03（2026-11-18）</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }

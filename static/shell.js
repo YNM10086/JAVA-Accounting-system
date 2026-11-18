@@ -256,21 +256,7 @@
       }).catch(() => { busy = false; orb.classList.remove("say"); setStatus("请求失败，检查服务是否在运行", true); });
     }
 
-    /* 记完一笔要让总览/明细/预算都跟着变。
-       整页刷新最稳（图表由 overview.js 用服务端内嵌数据画，局部换 DOM 会把图弄空），
-       刷新前把「已记几笔 + 建议 + 滚动位置」放进 sessionStorage，回来后接着显示。 */
-    function reloadAfterSave(saved, advice, note) {
-      try {
-        sessionStorage.setItem("bk_after_save", JSON.stringify({
-          saved: saved || 0,
-          advice: advice || "",
-          note: note || "",
-          scroll: (document.querySelector(".view") || {}).scrollTop || 0,
-        }));
-      } catch (e) { /* 存不了就算了，刷新照样能刷新数据 */ }
-      location.reload();
-    }
-
+    /* 记完一笔 / 重分完分类：静默换掉数据段，页面不重载、面板不关、滚动不动 */
     function doSave() {
       if (busy) return;
       const items = collect();
@@ -279,7 +265,16 @@
       post("/ai/save", { items }).then((j) => {
         busy = false;
         if (!j.ok) { setStatus(j.error || "入库失败", true); return; }
-        reloadAfterSave(j.saved, j.advice, "");
+        prev.innerHTML = "";
+        const done = document.createElement("div");
+        done.className = "aiDone";
+        done.innerHTML = "<b>✓</b> 已记 " + j.saved + " 笔";
+        prev.appendChild(done);
+        prev.hidden = false;
+        setStatus("");
+        if (j.advice) showAdvice(j.advice);
+        else if (j.adviceError) setStatus("已记 " + j.saved + " 笔，建议没拿到：" + j.adviceError, true);
+        softRefresh();
       }).catch(() => { busy = false; setStatus("请求失败，检查服务是否在运行", true); });
     }
 
@@ -291,7 +286,11 @@
       post("/ai/classify", {}).then((j) => {
         busy = false; orb.classList.remove("say");
         if (!j.ok) { setStatus(j.error || "分类失败", true); return; }
-        if (j.changed > 0) { reloadAfterSave(0, "", "已更新 " + j.changed + " 条分类"); return; }
+        if (j.changed > 0) {
+          setStatus("已更新 " + j.changed + " 条分类");
+          softRefresh({ flash: "已更新 " + j.changed + " 条分类" });
+          return;
+        }
         setStatus("没有需要改的，分类已经是最新");
       }).catch(() => { busy = false; orb.classList.remove("say"); setStatus("请求失败，检查服务是否在运行", true); });
     }
@@ -342,33 +341,6 @@
       .catch(() => setEngine(false, ""));
 
     idleLoop(true);
-
-    /* 刚记完一笔整页刷新回来：把面板、结果、建议、滚动位置接上（数据已经是新的） */
-    (function restoreAfterSave() {
-      let raw = null;
-      try {
-        raw = sessionStorage.getItem("bk_after_save");
-        sessionStorage.removeItem("bk_after_save");
-      } catch (e) { return; }
-      if (!raw) return;
-      let s = null;
-      try { s = JSON.parse(raw); } catch (e) { return; }
-      setTimeout(() => {
-        openPanel(false);
-        if (s.saved > 0) {
-          prev.innerHTML = "";
-          const done = document.createElement("div");
-          done.className = "aiDone";
-          done.innerHTML = "<b>✓</b> 已记 " + s.saved + " 笔 · 数据已刷新";
-          prev.appendChild(done);
-          prev.hidden = false;
-        }
-        if (s.advice) showAdvice(s.advice);
-        else if (s.note) flash(s.note, false);
-        const view = document.querySelector(".view");
-        if (view && s.scroll) view.scrollTop = s.scroll;
-      }, 160);
-    })();
   }
 
 
@@ -478,6 +450,8 @@
   /* ---------------- 7b. 导出：页面内拿 blob 再下载，不跳转 ---------------- */
   function exportLinks() {
     document.querySelectorAll("a[href^='/export']").forEach((a) => {
+      if (a.dataset.dlBound === "1") return;   // 静默刷新会再调一次，别重复绑
+      a.dataset.dlBound = "1";
       a.addEventListener("click", (e) => {
         e.preventDefault();
         if (a.dataset.busy === "1") return;
@@ -521,6 +495,107 @@
     });
   }
 
+  /* ---------------- 7c. 静默刷新：只换数据段，不重载整页 ---------------- */
+  const SOFT_IDS = ["overview", "entry", "income", "details", "budget", "settings"];
+
+  /** 从服务端渲染的 HTML 里抠出 window.__flash=[文字, 是否错误] */
+  function flashFrom(doc) {
+    const hit = Array.prototype.slice.call(doc.querySelectorAll("script"))
+      .map((s) => s.textContent || "")
+      .find((t) => t.indexOf("window.__flash=") >= 0);
+    if (!hit) return null;
+    const a = hit.indexOf("["), b = hit.lastIndexOf("]");
+    if (a < 0 || b <= a) return null;
+    try {
+      // 版本是 JS 字面量（单引号 + 转义），直接按 JS 求值最稳
+      const arr = new Function("return [" + hit.slice(a + 1, b) + "]")();
+      return { text: String(arr[0] || ""), err: !!arr[1] };
+    } catch (e) { return null; }
+  }
+
+  /** 把一份新的 /main HTML 就地换进页面：数据段换内容，图表用 ov 重画 */
+  function applyPage(html, ov, hash) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    if (!doc.getElementById("overview")) { location.reload(); return; }
+
+    SOFT_IDS.forEach((id) => {
+      const fresh = doc.getElementById(id);
+      const old = document.getElementById(id);
+      if (fresh && old) old.innerHTML = fresh.innerHTML;
+    });
+    if (ov && typeof window.OVRefresh === "function") window.OVRefresh(ov);
+
+    corners();
+    detailMore();
+    settingsBits();
+    exportLinks();
+
+    const f = flashFrom(doc);
+    if (f) flash(f.text, f.err);
+
+    // 地址栏里的 ?ok=/?edit= 清掉，保留段落锚点
+    const want = hash != null ? hash : (location.hash || "").replace("#", "");
+    history.replaceState(null, "", "/main" + (SOFT_IDS.indexOf(want) >= 0 ? "#" + want : ""));
+  }
+
+  /** 软打开一个页面（改一笔 / 取消修改这类同站链接），不整页跳 */
+  function openPage(url, hash, focusSel) {
+    Promise.all([
+      fetch(url, { credentials: "same-origin", cache: "no-store" }).then((r) => r.text()),
+      fetch("/api/overview", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => r.json()).catch(() => null),
+    ]).then(([html, ov]) => {
+      applyPage(html, ov, hash);
+      const t = hash ? document.getElementById(hash) : null;
+      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (focusSel) setTimeout(() => { const g = document.querySelector(focusSel); if (g) g.focus(); }, 360);
+    }).catch(() => { location.href = url; });
+  }
+
+  let softBusy = null;
+
+  /** 拉最新数据静默刷新；o.flash 可附带一条提示 */
+  function softRefresh(o) {
+    const opt = o || {};
+    if (softBusy) return softBusy;
+    softBusy = Promise.all([
+      fetch("/main", { credentials: "same-origin", cache: "no-store" }).then((r) => r.text()),
+      fetch("/api/overview", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => r.json()).catch(() => null),
+    ]).then(([html, ov]) => {
+      applyPage(html, ov);
+      if (opt.flash) flash(opt.flash, !!opt.err);
+    }).catch(() => flash("刷新数据失败，按 F5 试试", true))
+      .finally(() => { softBusy = null; });
+    return softBusy;
+  }
+
+  /** 表单改成后台提交：POST 完直接拿返回的那份 /main 去换，不整页跳 */
+  function silentSubmit(form) {
+    const act = form.getAttribute("action") || "";
+    const btn = form.querySelector("button[type='submit']");
+    const label = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "处理中…"; }
+
+    const body = new URLSearchParams();
+    new FormData(form).forEach((v, k) => body.append(k, v));
+
+    const posted = fetch(act, {
+      method: "POST", body, credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    }).then((r) => r.text());
+
+    // 必须等 POST 落库后再取数据，否则图表会拿到写之前的快照
+    return posted
+      .then((html) => fetch("/api/overview", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => r.json()).catch(() => null)
+        .then((ov) => applyPage(html, ov)))
+      .catch(() => { location.reload(); })
+      .finally(() => {
+        if (btn && document.contains(btn)) { btn.disabled = false; btn.textContent = label; }
+      });
+  }
+
   /* ---------------- 5. 挂载 ---------------- */
   function mount() {
     ocean();
@@ -532,6 +607,27 @@
     settingsBits();
     exportLinks();
     if (window.__flash) flash(window.__flash[0], window.__flash[1]);
+
+    // 记一笔 / 删 / 收入 / 预算：全部静默提交，不刷新整页
+    document.addEventListener("submit", (e) => {
+      const f = e.target;
+      if (!f || f.tagName !== "FORM") return;
+      if (!/^\/(save|del|income|budget)$/.test(f.getAttribute("action") || "")) return;
+      e.preventDefault();
+      silentSubmit(f);
+    });
+
+    // 「改」和「取消修改」也是同站链接：软打开，别整页重载
+    document.addEventListener("click", (e) => {
+      const a = e.target && e.target.closest
+        ? e.target.closest("a[href^='/main?edit='], a[href^='/main?iedit='], a[href='/main'], a[href^='/main#']")
+        : null;
+      if (!a) return;
+      e.preventDefault();
+      const url = a.getAttribute("href");
+      const hash = (url.split("#")[1] || "");
+      openPage(url, hash, hash === "entry" ? "#entry input[name='goods']" : "");
+    });
 
     // 状态栏右侧那排装饰条
     const bc = $("barcode");

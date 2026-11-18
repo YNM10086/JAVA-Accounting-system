@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  const OV = window.OV;
+  let OV = window.OV;
   if (!OV) return;
 
   const $ = (id) => document.getElementById(id);
@@ -22,14 +22,15 @@
   const TOPN = 5;
   const colorOf = (rank) => RAMP[Math.min(rank, RAMP.length - 1)];
 
-  // 当前在看哪个月 / 哪一天
-  const state = {
+  // 当前在看哪个月 / 哪一天（boot() 会按 window.OV 重建）
+  let state = {
     month: OV.month,
     day: null,
     data: { month: OV.month, cats: OV.cats || [], types: OV.types || [], expense: OV.expense || 0, rows: OV.rows || [] },
     daily: OV.daily || [],
     today: OV.today || OV.daily.length,
   };
+  let flow = null;
 
   /* ---------------- 表格 ---------------- */
   function sumOf(rows) { return rows.reduce((a, r) => a + r.p, 0); }
@@ -372,11 +373,32 @@
       .catch(() => { /* 换月失败就保持原样 */ });
   }
 
-  /* ---------------- 起手 ---------------- */
-  const flow = drawFlow();
-  renderRing(state.data);
-  resetTable();
+  /* ---------------- 起手 / 重画 ---------------- */
+  function boot() {
+    OV = window.OV || OV;
+    if (!OV) return;
+    state = {
+      month: OV.month,
+      day: null,
+      data: {
+        month: OV.month, cats: OV.cats || [], types: OV.types || [],
+        expense: OV.expense || 0, rows: OV.rows || [],
+      },
+      daily: OV.daily || [],
+      today: OV.today || (OV.daily || []).length,
+    };
+    flow = drawFlow();
+    renderRing(state.data);
+    resetTable();
+    const resetBtn = $("recentReset");
+    if (resetBtn) resetBtn.addEventListener("click", resetTable);
+  }
 
-  const reset = $("recentReset");
-  if (reset) reset.addEventListener("click", resetTable);
+  boot();
+
+  /* 静默刷新：页面把 #overview 的 DOM 换成新的之后，塞进新数据重画一遍 */
+  window.OVRefresh = function (data) {
+    window.OV = data;
+    boot();
+  };
 })();
