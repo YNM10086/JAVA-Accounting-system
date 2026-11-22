@@ -174,7 +174,7 @@
     <div class="brand">BOOKKEEPING<br>SYSTEM</div>
     <div id="cornerState" class="state">LOADING…</div>
     <div class="meta">JAVA 17 · MYSQL · LOCAL AI</div>
-    <div class="meta faint">v3.0.4 · BUILD 2026.11.22</div>
+    <div class="meta faint">v3.0.5 · BUILD 2026.11.22</div>
     <div id="codeWrap">
       <div id="cornerCode"><div></div><div></div><div></div><div></div></div>
     </div>
@@ -182,7 +182,7 @@
   </div>
 
   <!-- 右下角只留版本号，右上全靠蜂窝衰减留白 -->
-  <div id="cornerMeta">v3.0.4</div>
+  <div id="cornerMeta">v3.0.5</div>
 
   <!-- 底部通栏进度条：铺满窗口宽度，百分比跟着进度头一起走 -->
   <div id="prog">
@@ -624,19 +624,153 @@
   }
   applyFail();
 
+  // ---------- 声音：WebAudio 现场合成，不加载任何音频文件 ----------
+  // 浏览器在用户没点过之前会拦自动播放：这里能出就出，出不来就静默跳过，不影响动画。
+  const SND_KEY = "bk_splash_sound";
+  let sndOn = true;
+  try { sndOn = localStorage.getItem(SND_KEY) !== "0"; } catch (e) { /* 隐私模式读不到就当开 */ }
+
+  let ac = null, master = null;
+
+  function sndInit() {
+    if (ac) return ac;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try {
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = sndOn ? 0.34 : 0.0001;
+      master.connect(ac.destination);
+    } catch (e) { ac = null; }
+    return ac;
+  }
+
+  function sndResume() {
+    if (ac && ac.state === "suspended") ac.resume().catch(() => {});
+  }
+
+  /** 包一层包络：快起、指数衰减，避免咔哒声 */
+  function env(g, t0, gain, attack, dur) {
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + dur);
+  }
+
+  /** 扫频单音 */
+  function tone(f0, f1, dur, gain, type, at) {
+    if (!ac || !sndOn) return;
+    const t0 = ac.currentTime + (at || 0);
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(f0, t0);
+    if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+    env(g, t0, gain, Math.min(0.02, dur * 0.25), dur);
+    o.connect(g).connect(master);
+    o.start(t0);
+    o.stop(t0 + dur + 0.08);
+  }
+
+  /** 噪声滴答：带通滤一下，像机械/扫描的轻响 */
+  function tickAt(freq, dur, gain, at) {
+    if (!ac || !sndOn) return;
+    const t0 = ac.currentTime + (at || 0);
+    const len = Math.max(1, Math.floor(ac.sampleRate * dur));
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 1.6;
+    const g = ac.createGain(); g.gain.value = gain;
+    src.connect(bp).connect(g).connect(master);
+    src.start(t0);
+  }
+
+  // —— 四个点：通电、三条自检落位、收尾 ——
+  function cuePower() {
+    tone(96, 42, 0.55, 0.20, "sine");
+    tickAt(2400, 0.03, 0.05, 0.02);
+  }
+  function cueCheck(i) {
+    const f = [0, 520, 620, 740][i];
+    tone(f, f, 0.09, 0.06, "triangle");
+    tickAt(3200, 0.02, 0.028, 0.005);
+  }
+  function cueSpin() {
+    tone(180, 320, 0.85, 0.04, "sine");
+  }
+  function cueDone() {
+    tone(660, 660, 0.16, 0.08, "triangle", 0);
+    tone(990, 990, 0.22, 0.07, "triangle", 0.14);
+    tone(220, 220, 0.5, 0.045, "sine", 0);
+  }
+
+  const CUES = [
+    { at: 780,   fn: cuePower },
+    { at: 2740,  fn: () => tickAt(1200, 0.05, 0.045) },   // 外环起笔
+    { at: 4490,  fn: () => tickAt(1500, 0.05, 0.04) },    // 内弧起笔
+    { at: 6560,  fn: () => cueCheck(1) },
+    { at: 8060,  fn: () => cueCheck(2) },
+    { at: 9500,  fn: () => cueCheck(3) },
+    { at: 10250, fn: cueSpin },
+    { at: 12150, fn: cueDone },
+  ];
+  const firedCues = new Set();
+
+  function soundAt(t) {
+    if (!sndOn || !ac) return;
+    for (const c of CUES) {
+      if (!firedCues.has(c) && t >= c.at) { firedCues.add(c); c.fn(); }
+    }
+  }
+
+  function paintSnd() {
+    const b = document.getElementById("sndBtn");
+    if (!b) return;
+    b.textContent = sndOn ? "♪ 声音 开" : "♪ 声音 关";
+    b.classList.toggle("off", !sndOn);
+  }
+  function toggleSnd() {
+    sndOn = !sndOn;
+    try { localStorage.setItem(SND_KEY, sndOn ? "1" : "0"); } catch (e) { /* 忽略 */ }
+    if (sndOn && sndInit()) { sndResume(); if (firedCues.size === 0) cuePower(); }
+    if (master) master.gain.value = sndOn ? 0.34 : 0.0001;
+    paintSnd();
+  }
+  // 按钮在脚本后面才出现，用捕获阶段的事件委托，顺便拦住「点任意处进入」
+  document.addEventListener("pointerdown", e => {
+    if (e.target && e.target.id === "sndBtn") e.stopPropagation();
+  }, true);
+  document.addEventListener("click", e => {
+    if (e.target && e.target.id === "sndBtn") {
+      e.stopPropagation();
+      e.preventDefault();
+      toggleSnd();
+    }
+  }, true);
+  window.addEventListener("load", paintSnd);
+
+  // 被浏览器拦了自动播放时，等第一次点击/按键再恢复音轨
+  ["pointerdown", "keydown"].forEach(ev =>
+    window.addEventListener(ev, () => sndResume(), { once: true, passive: true }));
+
   let start = 0, raf = 0;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const fixed = params.get("t");
 
   function loop(now) {
     if (!start) start = now;
-    render(now - start);           // 结束后其余段落自动停在终态，内弧继续转
+    const t = now - start;
+    render(t);
+    soundAt(t);
     raf = requestAnimationFrame(loop);
   }
 
   function play() {
     cancelAnimationFrame(raf);
     start = 0;
+    firedCues.clear();
+    if (sndOn && sndInit()) sndResume();
     raf = requestAnimationFrame(loop);
   }
 
@@ -655,13 +789,17 @@
       play();
     }
     else if (k === "d") { document.body.classList.toggle("debug"); }
+    else if (k === "m") { toggleSnd(); }
   });
 
   if (fixed !== null) { render(parseFloat(fixed) * 1000); }
   else if (reduced) { render(T.end); }
   else { play(); }
 
-  window.__splash = { render, T, P, ROT, HEX, C };
+  window.__splash = {
+    render, T, P, ROT, HEX, C,
+    silence: function () { if (master) master.gain.value = 0.0001; },
+  };
 })();
 </script>
 <style>
@@ -672,14 +810,24 @@
   }
   #enterHint.on{opacity:1}
   #enterHint b{color:rgba(255,138,30,.8);font-weight:400}
+  #sndBtn{
+    position:fixed;left:26px;bottom:20px;z-index:50;
+    font-family:"JetBrains Mono",Consolas,monospace;font-size:9.5px;letter-spacing:.16em;
+    color:rgba(233,237,246,.42);background:none;border:0;padding:1px 0;cursor:pointer;
+    transition:color .2s linear;
+  }
+  #sndBtn:hover{color:rgba(255,138,30,.9)}
+  #sndBtn.off{color:rgba(233,237,246,.2)}
 </style>
 <div id="enterHint"><b>SKIP</b> · 点击任意处进入</div>
+<button id="sndBtn" type="button" aria-label="开关开屏声音">♪ 声音 开</button>
 <script>
 (function () {
   var gone = false;
   function enter() {
     if (gone) return;
     gone = true;
+    if (window.__splash && window.__splash.silence) window.__splash.silence();
     document.documentElement.classList.add("leave");
     location.href = "/splash-done";
   }
