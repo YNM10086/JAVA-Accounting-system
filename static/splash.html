@@ -174,7 +174,7 @@
     <div class="brand">BOOKKEEPING<br>SYSTEM</div>
     <div id="cornerState" class="state">LOADING…</div>
     <div class="meta">JAVA 17 · MYSQL · LOCAL AI</div>
-    <div class="meta faint">v3.0.7 · BUILD 2026.11.22</div>
+    <div class="meta faint">v3.0.8 · BUILD 2026.11.22</div>
     <div id="codeWrap">
       <div id="cornerCode"><div></div><div></div><div></div><div></div></div>
     </div>
@@ -182,7 +182,7 @@
   </div>
 
   <!-- 右下角只留版本号，右上全靠蜂窝衰减留白 -->
-  <div id="cornerMeta">v3.0.7</div>
+  <div id="cornerMeta">v3.0.8</div>
 
   <!-- 底部通栏进度条：铺满窗口宽度，百分比跟着进度头一起走 -->
   <div id="prog">
@@ -714,49 +714,8 @@
     tone(f0, f1, dur, gain, "sine");
   }
 
-  /**
-   * 机械表棘轮：一下「金属碰撞」= 极短的高频冲击 + 两条快速衰减的金属余韵。
-   * freq 控制在 4~6kHz，衰减 20~40ms，才有表芯里那种清脆的嗒声。
-   */
-  function metalTick(freq, gain) {
-    if (!ac || !sndOn) return;
-    const t0 = ac.currentTime + 0.001;
-
-    // 冲击：带通到高频的噪声，12ms 收掉
-    if (!noiseBuf) {
-      const len = Math.floor(ac.sampleRate * 0.08);
-      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
-      const d = noiseBuf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    }
-    const src = ac.createBufferSource();
-    src.buffer = noiseBuf;
-    const bp = ac.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = freq * 1.55;
-    bp.Q.value = 12;
-    const g1 = ac.createGain();
-    g1.gain.setValueAtTime(gain, t0);
-    g1.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.012);
-    src.connect(bp).connect(g1).connect(master);
-    src.start(t0);
-    src.stop(t0 + 0.02);
-
-    // 余韵：基音 + 1.73 倍泛音，模拟钢件共振
-    [1, 1.73].forEach((k, i) => {
-      const o = ac.createOscillator(), g2 = ac.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(freq * k, t0);
-      g2.gain.setValueAtTime(0.0001, t0);
-      g2.gain.exponentialRampToValueAtTime(gain * (i ? 0.45 : 0.8), t0 + 0.003);
-      g2.gain.exponentialRampToValueAtTime(0.0001, t0 + (i ? 0.045 : 0.028));
-      o.connect(g2).connect(master);
-      o.start(t0);
-      o.stop(t0 + 0.07);
-    });
-  }
-
   // —— 关键点：通电滑音、三条自检落位、收尾 ——
+  // （圆弧/齿轮的「嗒嗒」按用户要求先去掉；要恢复看 git add3a5e 那版）
   function cuePower() {
     cueSweep(170, 300, 0.95, 0.16);
   }
@@ -781,30 +740,11 @@
   ];
   const firedCues = new Set();
 
-  // —— 棘轮只跟 前两段圆弧 走（外环生长、内弧生长） ——
-  const RATCHETS = [
-    { from: 2700, to: 4450, every: 82, freq: 4900, gain: 0.17 },
-    { from: 4450, to: 5700, every: 82, freq: 5400, gain: 0.17 },
-  ];
-  let lastRatchet = -1e9, tickFlip = 0;
-
-  function ratchetAt(t) {
-    const r = RATCHETS.find(x => t >= x.from && t <= x.to);
-    if (!r) return;
-    if (t - lastRatchet < r.every) return;
-    lastRatchet = t;
-    tickFlip = 1 - tickFlip;
-    // 一嗒一嗒交替音高（像表芯的 tick-tock），再加一点点随机
-    const f = r.freq * (tickFlip ? 1.055 : 0.95) * (0.97 + Math.random() * 0.06);
-    metalTick(f, r.gain);
-  }
-
   function soundAt(t) {
     if (!sndOn || !ac) return;
     for (const c of CUES) {
       if (!firedCues.has(c) && t >= c.at) { firedCues.add(c); c.fn(); }
     }
-    ratchetAt(t);
   }
 
   function paintSnd() {
@@ -853,7 +793,6 @@
     cancelAnimationFrame(raf);
     start = 0;
     firedCues.clear();
-    lastRatchet = -1e9;
     if (sndOn && sndInit()) sndResume();
     raf = requestAnimationFrame(loop);
   }
