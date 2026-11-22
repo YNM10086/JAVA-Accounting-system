@@ -29,6 +29,9 @@ public class AiAssistant {
     private static volatile String modelCache = null;
     private static final Duration TIMEOUT = Duration.ofSeconds(90);
 
+    /** 一天的标准伙食费（只算「餐饮」类）。建议里按这个数评估，而不是笼统劝人少吃 */
+    public static final double MEAL_DAILY = 30.0;
+
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
@@ -350,9 +353,17 @@ public class AiAssistant {
 
     public static String advice() throws Exception {
         String sys = "你是一个语气轻松、不说教的个人记账助手。用户会给你本月汇总和最近 8 笔记录（含他刚刚记进来的）。" +
+                "判断口径：一天的伙食标准是 ¥30（只算「餐饮」类，早中晚都包含在内），吃饭是刚需，不是越省越好；" +
+                "汇总里会给出餐饮的日均和标准，请按这个标准判断，不要凭感觉说餐饮花得多。" +
                 "先用最多 2 句点评最近这几笔里值得注意的地方；再给 1 句本月整体建议。" +
-                "硬性要求：提到消费时必须原样照抄数据里的商品名和金额，不许改写、翻译、概括成别的词" +
-                "（例如数据里是「橙子 37」，就只能说橙子，不能写成橘子、水果）；不许出现数据里没有的消费。只输出 JSON：{\"advice\":\"...\"}";
+                "硬性要求：" +
+                "①提到消费时必须原样照抄数据里的商品名和金额，不许改写、翻译、概括成别的词" +
+                "（例如数据里是「橙子 37」，就只能说橙子，不能写成橘子、水果）；不许出现数据里没有的消费。" +
+                "②绝对不许劝人少吃、少点外卖、减少餐饮频率、控制吃饭开销、别下馆子这类话——人总要吃饭；" +
+                "餐饮日均没有超过 ¥30 时不许把它当问题提。" +
+                "③只有餐饮日均明显高于 ¥30 时，才可以说「这几天伙食超了一点」，" +
+                "并给同价位更划算的搭配建议（比如自己带一顿、换主食），不许建议不吃或饿着。" +
+                "只输出 JSON：{\"advice\":\"...\"}";
         String content = chatJson(sys, monthSummary());
         Map<String, Object> root = Json.map(Json.parse(extractJson(content)));
         String a = Json.str(root.get("advice"));
@@ -366,7 +377,7 @@ public class AiAssistant {
         int today = Date_time.getDay();
         String table = String.format("table_%02d", month);
 
-        double total = 0, daily = 0, special = 0, income = 0;
+        double total = 0, daily = 0, special = 0, income = 0, meals = 0;
         int recordDays = 0;
         List<String> top = new ArrayList<>();
         List<String> recent = new ArrayList<>();
@@ -391,6 +402,11 @@ public class AiAssistant {
                 while (rs.next()) {
                     top.add(rs.getString(1) + " ¥" + String.format("%.0f", rs.getDouble(2)));
                 }
+                rs.close();
+
+                // 伙食单独算：建议里要对照「一天 ¥30」的标准，而不是笼统说餐饮多
+                rs = st.executeQuery("SELECT COALESCE(SUM(price),0) FROM " + table + " WHERE cat = '餐饮'");
+                if (rs.next()) meals = rs.getDouble(1);
                 rs.close();
 
                 // 最近 8 笔：建议要能点到用户刚记进去的那几笔
@@ -434,6 +450,17 @@ public class AiAssistant {
          .append("，合计 ¥").append(String.format("%.0f", total))
          .append("；本月收入（预算）¥").append(String.format("%.0f", income))
          .append("，已记录 ").append(recordDays).append(" 天");
+
+        // 伙食：日均 vs 标准 ¥30/天（早中晚都算在里面，属于刚需）
+        int elapsed = Math.max(1, today);
+        double mealStandard = MEAL_DAILY * elapsed;
+        b.append("；伙食（餐饮）合计 ¥").append(String.format("%.0f", meals))
+         .append("，日均 ¥").append(String.format("%.1f", meals / elapsed))
+         .append("，标准 ¥").append(String.format("%.0f", MEAL_DAILY)).append("/天（")
+         .append(elapsed).append(" 天共 ¥").append(String.format("%.0f", mealStandard)).append("）→ ")
+         .append(meals <= mealStandard
+                 ? "在标准内，不算问题"
+                 : "超出 ¥" + String.format("%.0f", meals - mealStandard));
         if (!top.isEmpty()) {
             b.append("；金额前五：").append(String.join("、", top));
         }

@@ -496,7 +496,8 @@
   }
 
   /* ---------------- 7c. 静默刷新：只换数据段，不重载整页 ---------------- */
-  const SOFT_IDS = ["overview", "entry", "income", "details", "budget", "settings"];
+  /** 页面上所有段落 id（用于保留地址栏锚点） */
+  const SOFT_IDS = ["overview", "entry", "income", "details", "budget", "settings", "export"];
 
   /** 从服务端渲染的 HTML 里抠出 window.__flash=[文字, 是否错误] */
   function flashFrom(doc) {
@@ -518,16 +519,41 @@
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (!doc.getElementById("overview")) { location.reload(); return; }
 
-    SOFT_IDS.forEach((id) => {
+    // 首屏入场动画已经放过了：重建的节点别再放一遍
+    document.body.classList.add("settled");
+
+    // 总览：只换 KPI 卡片和「最近流水」，图表 DOM 留着让 OVRefresh 就地重画
+    ["ovKpis", "ovRecent"].forEach((id) => {
       const fresh = doc.getElementById(id);
       const old = document.getElementById(id);
       if (fresh && old) old.innerHTML = fresh.innerHTML;
     });
+
+    // 记一笔：只在「新增 ↔ 修改」切换时换表单，否则保留用户正在输入的内容
+    const oldEntry = document.getElementById("entry");
+    const freshEntry = doc.getElementById("entry");
+    if (oldEntry && freshEntry) {
+      const wasEdit = !!oldEntry.querySelector("input[name='id']");
+      const nowEdit = !!freshEntry.querySelector("input[name='id']");
+      if (wasEdit !== nowEdit) oldEntry.innerHTML = freshEntry.innerHTML;
+    }
+
+    // 明细 / 收入 / 预算：整段换（没有进场动画，换完就是新数字）
+    ["details", "income", "budget"].forEach((id) => {
+      const fresh = doc.getElementById(id);
+      const old = document.getElementById(id);
+      if (fresh && old) old.innerHTML = fresh.innerHTML;
+    });
+
+    // 设置段不整段换（会重建模型下拉、闪一下「读取中…」），只更新预算那行
+    const sbFresh = doc.getElementById("settingsBudget");
+    const sbOld = document.getElementById("settingsBudget");
+    if (sbFresh && sbOld) sbOld.innerHTML = sbFresh.innerHTML;
+
     if (ov && typeof window.OVRefresh === "function") window.OVRefresh(ov);
 
     corners();
     detailMore();
-    settingsBits();
     exportLinks();
 
     const f = flashFrom(doc);
@@ -586,10 +612,17 @@
     }).then((r) => r.text());
 
     // 必须等 POST 落库后再取数据，否则图表会拿到写之前的快照
+    const wasEdit = !!form.querySelector("input[name='id']") ||
+                    (form.querySelector("input[name='_action']") || {}).value === "update";
+
     return posted
       .then((html) => fetch("/api/overview", { credentials: "same-origin", cache: "no-store" })
         .then((r) => r.json()).catch(() => null)
-        .then((ov) => applyPage(html, ov)))
+        .then((ov) => {
+          applyPage(html, ov);
+          // 新增成功后把表单清空；修改模式下表单已被换成新的一份
+          if (form.isConnected && !wasEdit) form.reset();
+        }))
       .catch(() => { location.reload(); })
       .finally(() => {
         if (btn && document.contains(btn)) { btn.disabled = false; btn.textContent = label; }
@@ -607,6 +640,9 @@
     settingsBits();
     exportLinks();
     if (window.__flash) flash(window.__flash[0], window.__flash[1]);
+
+    // 首屏进场动画放完就把话说死：之后重建的节点不再重播
+    setTimeout(() => document.body.classList.add("settled"), 1600);
 
     // 记一笔 / 删 / 收入 / 预算：全部静默提交，不刷新整页
     document.addEventListener("submit", (e) => {

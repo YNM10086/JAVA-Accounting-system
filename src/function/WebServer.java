@@ -883,7 +883,7 @@ public class WebServer {
           .append("<a class='btn solid' href='/save'>＋ 记一笔</a></div></div>");
 
         // ---- KPI ----
-        sb.append("<div class='kpis'>");
+        sb.append("<div class='kpis' id='ovKpis'>");
         double dayAvg = ov.expense / Math.max(1, Date_time.getDay());
         sb.append(kpiCard("收", "本月收入 / INCOME", ov.income, "",
                 ov.income > 0 ? "本月累计" : "本月还没有收入记录", false));
@@ -935,7 +935,7 @@ public class WebServer {
         sb.append("</div>");
 
         // ---- 最近流水 ----
-        sb.append("<section class='panel'><header class='ph'><span class='label'>最近流水 / RECENT</span>")
+        sb.append("<section class='panel' id='ovRecent'><header class='ph'><span class='label'>最近流水 / RECENT</span>")
           .append("<span class='phTools'><span class='act' id='recentNote'>本月 · 共 ").append(ov.count).append(" 条</span>")
           .append("<button class='link' id='recentReset' type='button' hidden>显示本月全部</button></span></header>")
           .append("<table><thead><tr><th style='width:100px'>编号 / NO.</th><th style='width:104px'>日期 / DATE</th>")
@@ -1086,7 +1086,7 @@ public class WebServer {
         sb.append("</nav><div class='railBot'>")
           .append("<div class='stat'><span>DATABASE</span><span class='dot'>已连接</span></div>")
           .append("<div class='stat'><span>AI ENGINE</span><span class='dot' id='aiEngine'>就绪</span></div>")
-          .append("<div class='stat'><span>BUILD</span><span>v3.0.3</span></div>")
+          .append("<div class='stat'><span>BUILD</span><span>v3.0.4</span></div>")
           .append("</div></aside>");
         return sb.toString();
     }

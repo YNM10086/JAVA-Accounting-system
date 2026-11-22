@@ -226,6 +226,18 @@
     .top > *,.top::after,.rail::after,.nav .group,.nav a,.railBot,.statusbar,
     .pagehead,.kpis .kpi,.row2 .panel,.view > .panel{animation:none !important}
   }
+
+  /* 静默刷新会重建这些节点：进场动画只在首次加载放一次，之后不再重播。
+     （否则每次记一笔，页头/KPI/面板都会重新「浮起」一次，看起来像整页重载） */
+  body.settled .top > *,
+  body.settled .nav .group,
+  body.settled .nav a,
+  body.settled .railBot,
+  body.settled .statusbar,
+  body.settled .pagehead,
+  body.settled .kpis .kpi,
+  body.settled .row2 .panel,
+  body.settled .view > .panel{animation:none !important}
   .kpi.accentLine::after{
     content:"";position:absolute;left:0;bottom:0;width:100%;height:1px;
     background:linear-gradient(90deg,rgba(255,138,30,.55),rgba(255,138,30,0));

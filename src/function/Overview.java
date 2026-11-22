@@ -73,7 +73,7 @@ public class Overview {
                     while (rs.next()) o.cats.put(rs.getString(1) == null ? "其他" : rs.getString(1), rs.getDouble(2));
                 }
                 try (ResultSet rs = st.executeQuery(
-                        "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC LIMIT 500")) {
+                        "SELECT date, goods, price, num_1, cat FROM " + table + " ORDER BY date DESC, id DESC LIMIT 500")) {
                     while (rs.next()) {
                         Row r = new Row();
                         r.date = rs.getInt(1);
