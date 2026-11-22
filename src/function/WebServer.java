@@ -1086,7 +1086,7 @@ public class WebServer {
         sb.append("</nav><div class='railBot'>")
           .append("<div class='stat'><span>DATABASE</span><span class='dot'>已连接</span></div>")
           .append("<div class='stat'><span>AI ENGINE</span><span class='dot' id='aiEngine'>就绪</span></div>")
-          .append("<div class='stat'><span>BUILD</span><span>v3.0.6</span></div>")
+          .append("<div class='stat'><span>BUILD</span><span>v3.0.7</span></div>")
           .append("</div></aside>");
         return sb.toString();
     }

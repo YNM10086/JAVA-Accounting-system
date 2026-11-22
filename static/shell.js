@@ -643,7 +643,7 @@
       o.type = "triangle";
       o.frequency.value = 740;
       g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, (vol / 100) * 0.4), t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, (vol / 100) * 0.6), t0 + 0.012);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
       o.connect(g).connect(previewAc.destination);
       o.start(t0);
@@ -658,7 +658,7 @@
     if (!chk || !rng) return;
 
     const KEY_ON = "bk_splash_sound", KEY_VOL = "bk_splash_volume";
-    let on = true, vol = 40;
+    let on = true, vol = 60;
     try {
       on = localStorage.getItem(KEY_ON) !== "0";
       const v = parseFloat(localStorage.getItem(KEY_VOL));

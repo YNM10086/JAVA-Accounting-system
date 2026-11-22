@@ -174,7 +174,7 @@
     <div class="brand">BOOKKEEPING<br>SYSTEM</div>
     <div id="cornerState" class="state">LOADING…</div>
     <div class="meta">JAVA 17 · MYSQL · LOCAL AI</div>
-    <div class="meta faint">v3.0.6 · BUILD 2026.11.22</div>
+    <div class="meta faint">v3.0.7 · BUILD 2026.11.22</div>
     <div id="codeWrap">
       <div id="cornerCode"><div></div><div></div><div></div><div></div></div>
     </div>
@@ -182,7 +182,7 @@
   </div>
 
   <!-- 右下角只留版本号，右上全靠蜂窝衰减留白 -->
-  <div id="cornerMeta">v3.0.6</div>
+  <div id="cornerMeta">v3.0.7</div>
 
   <!-- 底部通栏进度条：铺满窗口宽度，百分比跟着进度头一起走 -->
   <div id="prog">
@@ -628,15 +628,15 @@
   // 浏览器在用户没点过之前会拦自动播放：这里能出就出，出不来就静默跳过，不影响动画。
   const SND_KEY = "bk_splash_sound";
   const VOL_KEY = "bk_splash_volume";
-  let sndOn = true, sndVol = 40;
+  let sndOn = true, sndVol = 60;
   try {
     sndOn = localStorage.getItem(SND_KEY) !== "0";
     const v = parseFloat(localStorage.getItem(VOL_KEY));
     if (isFinite(v)) sndVol = Math.max(0, Math.min(100, v));
   } catch (e) { /* 隐私模式读不到就用默认 */ }
 
-  /** 0~100 的音量映射到总增益（40% ≈ 之前的默认响度） */
-  const gainFor = () => Math.max(0.0001, (sndVol / 100) * 0.8);
+  /** 0~100 的音量映射到总增益（60% 为默认响度） */
+  const gainFor = () => Math.max(0.0001, (sndVol / 100) * 1.0);
 
   let ac = null, master = null, noiseBuf = null;
 
@@ -648,7 +648,14 @@
       ac = new AC();
       master = ac.createGain();
       master.gain.value = sndOn ? gainFor() : 0.0001;
-      master.connect(ac.destination);
+      // 过一个压缩器：既不削波，又能把金属碰撞的瞬态顶出来
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16;
+      comp.knee.value = 12;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.18;
+      master.connect(comp).connect(ac.destination);
     } catch (e) { ac = null; }
     return ac;
   }
@@ -707,19 +714,61 @@
     tone(f0, f1, dur, gain, "sine");
   }
 
+  /**
+   * 机械表棘轮：一下「金属碰撞」= 极短的高频冲击 + 两条快速衰减的金属余韵。
+   * freq 控制在 4~6kHz，衰减 20~40ms，才有表芯里那种清脆的嗒声。
+   */
+  function metalTick(freq, gain) {
+    if (!ac || !sndOn) return;
+    const t0 = ac.currentTime + 0.001;
+
+    // 冲击：带通到高频的噪声，12ms 收掉
+    if (!noiseBuf) {
+      const len = Math.floor(ac.sampleRate * 0.08);
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = freq * 1.55;
+    bp.Q.value = 12;
+    const g1 = ac.createGain();
+    g1.gain.setValueAtTime(gain, t0);
+    g1.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.012);
+    src.connect(bp).connect(g1).connect(master);
+    src.start(t0);
+    src.stop(t0 + 0.02);
+
+    // 余韵：基音 + 1.73 倍泛音，模拟钢件共振
+    [1, 1.73].forEach((k, i) => {
+      const o = ac.createOscillator(), g2 = ac.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(freq * k, t0);
+      g2.gain.setValueAtTime(0.0001, t0);
+      g2.gain.exponentialRampToValueAtTime(gain * (i ? 0.45 : 0.8), t0 + 0.003);
+      g2.gain.exponentialRampToValueAtTime(0.0001, t0 + (i ? 0.045 : 0.028));
+      o.connect(g2).connect(master);
+      o.start(t0);
+      o.stop(t0 + 0.07);
+    });
+  }
+
   // —— 关键点：通电滑音、三条自检落位、收尾 ——
   function cuePower() {
-    cueSweep(170, 300, 0.95, 0.05);
+    cueSweep(170, 300, 0.95, 0.16);
   }
   function cueCheck(i) {
     const f = [0, 520, 620, 740][i];
-    tone(f, f, 0.09, 0.06, "triangle");
-    tickAt(3200, 0.02, 0.028, 0.005, 3);
+    tone(f, f, 0.09, 0.16, "triangle");
+    tickAt(3200, 0.02, 0.1, 0.005, 3);
   }
   function cueDone() {
-    tone(660, 660, 0.16, 0.08, "triangle", 0);
-    tone(990, 990, 0.22, 0.07, "triangle", 0.14);
-    tone(220, 220, 0.5, 0.045, "sine", 0);
+    tone(660, 660, 0.16, 0.16, "triangle", 0);
+    tone(990, 990, 0.22, 0.14, "triangle", 0.14);
+    tone(220, 220, 0.5, 0.09, "sine", 0);
   }
 
   const CUES = [
@@ -727,34 +776,27 @@
     { at: 6560,  fn: () => cueCheck(1) },
     { at: 8060,  fn: () => cueCheck(2) },
     { at: 9500,  fn: () => cueCheck(3) },
-    { at: 10250, fn: () => cueSweep(180, 320, 0.85, 0.04) }, // 快速旋转（同款滑音）
+    { at: 10250, fn: () => cueSweep(180, 320, 0.85, 0.14) }, // 快速旋转（同款滑音）
     { at: 12150, fn: cueDone },
   ];
   const firedCues = new Set();
 
-  // —— 圆弧/转盘移动时的棘轮声：按动画时间连续「嗒嗒嗒」 ——
-  // ramp=true 时越转越快（间隔从 every 收到 every*0.55）
+  // —— 棘轮只跟 前两段圆弧 走（外环生长、内弧生长） ——
   const RATCHETS = [
-    { from: 2700,  to: 4450,  every: 58, freq: 2500, gain: 0.05 },
-    { from: 4450,  to: 5700,  every: 58, freq: 2600, gain: 0.05 },
-    { from: 7250,  to: 8060,  every: 46, freq: 2700, gain: 0.055 },
-    { from: 8700,  to: 9500,  every: 46, freq: 2700, gain: 0.055 },
-    { from: 10250, to: 12140, every: 38, freq: 2800, gain: 0.06, ramp: true },
+    { from: 2700, to: 4450, every: 82, freq: 4900, gain: 0.17 },
+    { from: 4450, to: 5700, every: 82, freq: 5400, gain: 0.17 },
   ];
-  let lastRatchet = -1e9;
+  let lastRatchet = -1e9, tickFlip = 0;
 
   function ratchetAt(t) {
     const r = RATCHETS.find(x => t >= x.from && t <= x.to);
     if (!r) return;
-    let every = r.every;
-    if (r.ramp) {
-      const p = (t - r.from) / (r.to - r.from);
-      every = r.every * (1 - 0.4 * Math.max(0, Math.min(1, p)));
-    }
-    if (t - lastRatchet < every) return;
+    if (t - lastRatchet < r.every) return;
     lastRatchet = t;
-    // 频率轻微抖动，像真的棘轮而不是节拍器
-    tickAt(r.freq + Math.random() * 900, 0.014, r.gain, 0, 9);
+    tickFlip = 1 - tickFlip;
+    // 一嗒一嗒交替音高（像表芯的 tick-tock），再加一点点随机
+    const f = r.freq * (tickFlip ? 1.055 : 0.95) * (0.97 + Math.random() * 0.06);
+    metalTick(f, r.gain);
   }
 
   function soundAt(t) {
