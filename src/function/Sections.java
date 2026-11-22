@@ -285,16 +285,22 @@ public final class Sections {
         StringBuilder cats = new StringBuilder();
         for (String c : Cat.ALL) cats.append("<span class='pill'>").append(c).append("</span>");
         return "<section class='sec' id='settings'>" +
-            head("06", "设置", "SETTINGS / 只读", "") +
+            head("06", "设置", "SETTINGS / 偏好", "") +
             "<div class='panel pad'><dl class='kv'>" +
             "<dt>每月预算</dt><dd id='settingsBudget'>¥" + money(ov.budget) + "（在「预算」段可改，每月可不同）</dd>" +
+            "<dt>开屏声音</dt><dd class='sndPref'>" +
+                "<label class='sndToggle'><input type='checkbox' id='splashSnd'> <span>开机时播放</span></label>" +
+                "<div class='sndVol'><input type='range' id='splashVol' min='0' max='100' step='1' aria-label='开屏音量'>" +
+                "<b id='splashVolVal'>40%</b></div>" +
+                "<span class='hint'>开屏动画的音效（现场合成，无音频文件）；拖音量条会试听一声，改完下次启动生效。开屏页左下角也能临时开关。</span>" +
+            "</dd>" +
             "<dt>分类清单</dt><dd class='pills'>" + cats + "</dd>" +
             "<dt>数据库</dt><dd>MySQL · Cost_system · 当月表 " + String.format("table_%02d", ov.month) + "</dd>" +
             "<dt>AI 引擎</dt><dd id='settingsAi'>读取中…</dd>" +
             "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
             "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
-            "<dt>版本</dt><dd>v3.0.5 · 补丁 05（2026-11-22）</dd>" +
+            "<dt>版本</dt><dd>v3.0.6 · 补丁 06（2026-11-22）</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }

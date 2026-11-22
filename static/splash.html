@@ -174,7 +174,7 @@
     <div class="brand">BOOKKEEPING<br>SYSTEM</div>
     <div id="cornerState" class="state">LOADING…</div>
     <div class="meta">JAVA 17 · MYSQL · LOCAL AI</div>
-    <div class="meta faint">v3.0.5 · BUILD 2026.11.22</div>
+    <div class="meta faint">v3.0.6 · BUILD 2026.11.22</div>
     <div id="codeWrap">
       <div id="cornerCode"><div></div><div></div><div></div><div></div></div>
     </div>
@@ -182,7 +182,7 @@
   </div>
 
   <!-- 右下角只留版本号，右上全靠蜂窝衰减留白 -->
-  <div id="cornerMeta">v3.0.5</div>
+  <div id="cornerMeta">v3.0.6</div>
 
   <!-- 底部通栏进度条：铺满窗口宽度，百分比跟着进度头一起走 -->
   <div id="prog">
@@ -627,10 +627,18 @@
   // ---------- 声音：WebAudio 现场合成，不加载任何音频文件 ----------
   // 浏览器在用户没点过之前会拦自动播放：这里能出就出，出不来就静默跳过，不影响动画。
   const SND_KEY = "bk_splash_sound";
-  let sndOn = true;
-  try { sndOn = localStorage.getItem(SND_KEY) !== "0"; } catch (e) { /* 隐私模式读不到就当开 */ }
+  const VOL_KEY = "bk_splash_volume";
+  let sndOn = true, sndVol = 40;
+  try {
+    sndOn = localStorage.getItem(SND_KEY) !== "0";
+    const v = parseFloat(localStorage.getItem(VOL_KEY));
+    if (isFinite(v)) sndVol = Math.max(0, Math.min(100, v));
+  } catch (e) { /* 隐私模式读不到就用默认 */ }
 
-  let ac = null, master = null;
+  /** 0~100 的音量映射到总增益（40% ≈ 之前的默认响度） */
+  const gainFor = () => Math.max(0.0001, (sndVol / 100) * 0.8);
+
+  let ac = null, master = null, noiseBuf = null;
 
   function sndInit() {
     if (ac) return ac;
@@ -639,7 +647,7 @@
     try {
       ac = new AC();
       master = ac.createGain();
-      master.gain.value = sndOn ? 0.34 : 0.0001;
+      master.gain.value = sndOn ? gainFor() : 0.0001;
       master.connect(ac.destination);
     } catch (e) { ac = null; }
     return ac;
@@ -671,33 +679,42 @@
   }
 
   /** 噪声滴答：带通滤一下，像机械/扫描的轻响 */
-  function tickAt(freq, dur, gain, at) {
+  function tickAt(freq, dur, gain, at, q) {
     if (!ac || !sndOn) return;
+    if (!noiseBuf) {
+      const len = Math.floor(ac.sampleRate * 0.08);
+      noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
     const t0 = ac.currentTime + (at || 0);
-    const len = Math.max(1, Math.floor(ac.sampleRate * dur));
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const src = ac.createBufferSource(); src.buffer = buf;
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
     const bp = ac.createBiquadFilter();
-    bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 1.6;
-    const g = ac.createGain(); g.gain.value = gain;
+    bp.type = "bandpass";
+    bp.frequency.value = freq;
+    bp.Q.value = q || 1.8;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(bp).connect(g).connect(master);
     src.start(t0);
+    src.stop(t0 + dur + 0.02);
   }
 
-  // —— 四个点：通电、三条自检落位、收尾 ——
+  /** 低频滑音：开屏通电与最后旋转用的是同一个「倒数第二个」声音 */
+  function cueSweep(f0, f1, dur, gain) {
+    tone(f0, f1, dur, gain, "sine");
+  }
+
+  // —— 关键点：通电滑音、三条自检落位、收尾 ——
   function cuePower() {
-    tone(96, 42, 0.55, 0.20, "sine");
-    tickAt(2400, 0.03, 0.05, 0.02);
+    cueSweep(170, 300, 0.95, 0.05);
   }
   function cueCheck(i) {
     const f = [0, 520, 620, 740][i];
     tone(f, f, 0.09, 0.06, "triangle");
-    tickAt(3200, 0.02, 0.028, 0.005);
-  }
-  function cueSpin() {
-    tone(180, 320, 0.85, 0.04, "sine");
+    tickAt(3200, 0.02, 0.028, 0.005, 3);
   }
   function cueDone() {
     tone(660, 660, 0.16, 0.08, "triangle", 0);
@@ -706,22 +723,46 @@
   }
 
   const CUES = [
-    { at: 780,   fn: cuePower },
-    { at: 2740,  fn: () => tickAt(1200, 0.05, 0.045) },   // 外环起笔
-    { at: 4490,  fn: () => tickAt(1500, 0.05, 0.04) },    // 内弧起笔
+    { at: 780,   fn: cuePower },                            // 通电（滑音）
     { at: 6560,  fn: () => cueCheck(1) },
     { at: 8060,  fn: () => cueCheck(2) },
     { at: 9500,  fn: () => cueCheck(3) },
-    { at: 10250, fn: cueSpin },
+    { at: 10250, fn: () => cueSweep(180, 320, 0.85, 0.04) }, // 快速旋转（同款滑音）
     { at: 12150, fn: cueDone },
   ];
   const firedCues = new Set();
+
+  // —— 圆弧/转盘移动时的棘轮声：按动画时间连续「嗒嗒嗒」 ——
+  // ramp=true 时越转越快（间隔从 every 收到 every*0.55）
+  const RATCHETS = [
+    { from: 2700,  to: 4450,  every: 58, freq: 2500, gain: 0.05 },
+    { from: 4450,  to: 5700,  every: 58, freq: 2600, gain: 0.05 },
+    { from: 7250,  to: 8060,  every: 46, freq: 2700, gain: 0.055 },
+    { from: 8700,  to: 9500,  every: 46, freq: 2700, gain: 0.055 },
+    { from: 10250, to: 12140, every: 38, freq: 2800, gain: 0.06, ramp: true },
+  ];
+  let lastRatchet = -1e9;
+
+  function ratchetAt(t) {
+    const r = RATCHETS.find(x => t >= x.from && t <= x.to);
+    if (!r) return;
+    let every = r.every;
+    if (r.ramp) {
+      const p = (t - r.from) / (r.to - r.from);
+      every = r.every * (1 - 0.4 * Math.max(0, Math.min(1, p)));
+    }
+    if (t - lastRatchet < every) return;
+    lastRatchet = t;
+    // 频率轻微抖动，像真的棘轮而不是节拍器
+    tickAt(r.freq + Math.random() * 900, 0.014, r.gain, 0, 9);
+  }
 
   function soundAt(t) {
     if (!sndOn || !ac) return;
     for (const c of CUES) {
       if (!firedCues.has(c) && t >= c.at) { firedCues.add(c); c.fn(); }
     }
+    ratchetAt(t);
   }
 
   function paintSnd() {
@@ -734,7 +775,7 @@
     sndOn = !sndOn;
     try { localStorage.setItem(SND_KEY, sndOn ? "1" : "0"); } catch (e) { /* 忽略 */ }
     if (sndOn && sndInit()) { sndResume(); if (firedCues.size === 0) cuePower(); }
-    if (master) master.gain.value = sndOn ? 0.34 : 0.0001;
+    if (master) master.gain.value = sndOn ? gainFor() : 0.0001;
     paintSnd();
   }
   // 按钮在脚本后面才出现，用捕获阶段的事件委托，顺便拦住「点任意处进入」
@@ -770,6 +811,7 @@
     cancelAnimationFrame(raf);
     start = 0;
     firedCues.clear();
+    lastRatchet = -1e9;
     if (sndOn && sndInit()) sndResume();
     raf = requestAnimationFrame(loop);
   }

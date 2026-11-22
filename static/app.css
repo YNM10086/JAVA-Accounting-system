@@ -512,6 +512,22 @@
 .kv select:focus{outline:none;border-color:rgba(255,138,30,.6);background:rgba(255,138,30,.04)}
 .kv dd .hint{display:inline;margin-left:10px}
 
+/* 设置：开屏声音 */
+.kv dd.sndPref{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.sndToggle{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--dim);cursor:pointer}
+.sndToggle input{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
+.sndVol{display:flex;align-items:center;gap:9px}
+.sndVol input[type=range]{-webkit-appearance:none;appearance:none;width:180px;height:16px;background:none;cursor:pointer}
+.sndVol input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(155,180,225,.28)}
+.sndVol input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:10px;height:10px;margin-top:-4px;border-radius:50%;
+  background:var(--accent);border:0;
+}
+.sndVol input[type=range]:focus{outline:none}
+.sndVol input[type=range]:disabled{opacity:.35;cursor:default}
+.sndVol b{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--faint);min-width:36px}
+.kv dd.sndPref > .hint{flex:1 0 100%;margin:2px 0 0;font-size:11px;line-height:1.6;color:var(--faint)}
+
 /* 原生 <select> 的弹层是系统画的：不显式给 option 上底色，
    就是"白底 + 白字"整个列表一片空白（模型下拉踩过这个坑） */
 select{color-scheme:dark}

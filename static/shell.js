@@ -629,6 +629,67 @@
       });
   }
 
+  /* ---------------- 7d. 开屏声音：开关 + 音量（存在 localStorage，开屏页读同一份） ---------------- */
+  let previewAc = null;
+
+  function previewBeep(vol) {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!previewAc) previewAc = new AC();
+      if (previewAc.state === "suspended") previewAc.resume().catch(() => {});
+      const t0 = previewAc.currentTime + 0.01;
+      const o = previewAc.createOscillator(), g = previewAc.createGain();
+      o.type = "triangle";
+      o.frequency.value = 740;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, (vol / 100) * 0.4), t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
+      o.connect(g).connect(previewAc.destination);
+      o.start(t0);
+      o.stop(t0 + 0.2);
+    } catch (e) { /* 出不了声就算了 */ }
+  }
+
+  function soundPrefs() {
+    const chk = document.getElementById("splashSnd");
+    const rng = document.getElementById("splashVol");
+    const val = document.getElementById("splashVolVal");
+    if (!chk || !rng) return;
+
+    const KEY_ON = "bk_splash_sound", KEY_VOL = "bk_splash_volume";
+    let on = true, vol = 40;
+    try {
+      on = localStorage.getItem(KEY_ON) !== "0";
+      const v = parseFloat(localStorage.getItem(KEY_VOL));
+      if (isFinite(v)) vol = Math.max(0, Math.min(100, Math.round(v)));
+    } catch (e) { /* 隐私模式 */ }
+
+    const paint = () => {
+      chk.checked = on;
+      rng.value = String(vol);
+      rng.disabled = !on;
+      if (val) val.textContent = vol + "%";
+    };
+    paint();
+
+    chk.addEventListener("change", () => {
+      on = chk.checked;
+      try { localStorage.setItem(KEY_ON, on ? "1" : "0"); } catch (e) { /* 忽略 */ }
+      rng.disabled = !on;
+      flash(on ? "开屏声音：开" : "开屏声音：关（下次启动生效）");
+      if (on) previewBeep(vol);
+    });
+
+    rng.addEventListener("input", () => {
+      vol = Math.max(0, Math.min(100, parseInt(rng.value, 10) || 0));
+      if (val) val.textContent = vol + "%";
+      try { localStorage.setItem(KEY_VOL, String(vol)); } catch (e) { /* 忽略 */ }
+    });
+    // 松手时试听一声，音量大小心里有数
+    rng.addEventListener("change", () => previewBeep(vol));
+  }
+
   /* ---------------- 5. 挂载 ---------------- */
   function mount() {
     ocean();
@@ -638,6 +699,7 @@
     navSpy();
     detailMore();
     settingsBits();
+    soundPrefs();
     exportLinks();
     if (window.__flash) flash(window.__flash[0], window.__flash[1]);
 
