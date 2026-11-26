@@ -182,7 +182,9 @@ public final class Sections {
             } catch (Exception ignore) { /* 表不存在 */ }
             try { conn.close(); } catch (Exception ignored) {}
         }
-        double avg = ov.expense / Math.max(1, Date_time.getDay());
+        double dayN = Math.max(1, Date_time.getDay());
+        double avg = ov.expense / dayN;
+        double avgDaily = ov.daily / dayN;
 
         StringBuilder sb = new StringBuilder();
         sb.append("<section class='sec' id='details'>")
@@ -190,7 +192,9 @@ public final class Sections {
                   "<a class='act' href='/export'>导出本月 →</a>"))
           .append("<div class='statGrid'>")
           .append(stat("本月支出", "¥" + money(ov.expense)))
-          .append(stat("日均", "¥" + money(avg)))
+          .append(stat("日均 总 / 日常",
+                  "¥" + money(avg) + " <span style='color:var(--faint)'>/</span> "
+                      + "<span style='color:var(--dim)'>¥" + money(avgDaily) + "</span>"))
           .append(stat("记录数", ov.count + " 条"))
           .append(stat("日常 / 特殊", money(ov.daily) + " / " + money(ov.special)))
           .append("</div>");
@@ -300,7 +304,7 @@ public final class Sections {
             "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
             "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
-            "<dt>版本</dt><dd>v3.0.9 · 补丁 09（2026-11-25）</dd>" +
+            "<dt>版本</dt><dd>v3.0.10 · 补丁 10（2026-11-26）</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }
