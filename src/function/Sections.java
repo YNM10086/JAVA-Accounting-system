@@ -199,7 +199,18 @@ public final class Sections {
           .append(stat("日常 / 特殊", money(ov.daily) + " / " + money(ov.special)))
           .append("</div>");
 
-        sb.append("<div class='panel'><table><thead><tr><th style='width:92px'>日期</th>")
+        sb.append("<div class='detTools'>")
+          .append("<label class='detSearch'><span aria-hidden='true'>⌕</span>")
+          .append("<input id='detSearch' type='search' placeholder='搜备注 / 分类，如：话费' ")
+          .append("autocomplete='off' spellcheck='false' aria-label='搜索明细'>")
+          .append("</label>")
+          .append("<button id='detClear' class='link' type='button' hidden>清空</button>")
+          .append("<span id='detCount' class='detCount'></span>")
+          .append("<span class='detTip'>在本月最近 ").append(rows.size())
+          .append(" 条里搜；点上面环图的分类也能直接筛</span>")
+          .append("</div>");
+
+        sb.append("<div class='panel'><table id='detTable'><thead><tr><th style='width:92px'>日期</th>")
           .append("<th style='width:110px'>分类</th><th style='width:72px'>性质</th><th>备注</th>")
           .append("<th style='width:120px;text-align:right'>金额</th><th style='width:96px;text-align:right'>操作</th></tr></thead><tbody>");
         if (rows.isEmpty()) {
@@ -207,7 +218,7 @@ public final class Sections {
         }
         int shown = 0;
         for (String[] r : rows) {
-            sb.append(shown >= 20 ? "<tr class='more' hidden>" : "<tr>");
+            sb.append(shown >= 20 ? "<tr class='more' data-row='1' hidden>" : "<tr data-row='1'>");
             shown++;
             sb.append("<td class='dt'>").append(String.format("%02d", Integer.parseInt(r[1]))).append(" 日</td>")
               .append("<td class='tag' data-cat='").append(esc(r[5])).append("'><span class='tick'></span>")
@@ -223,9 +234,10 @@ public final class Sections {
               .append("<input type='hidden' name='month' value='").append(ov.month).append("'>")
               .append("<button class='link danger' type='submit' title='删除这一条'>删</button></form></td></tr>");
         }
+        sb.append("<tr id='detNoHit' hidden><td colspan='6' class='empty'>没有匹配的记录</td></tr>");
         sb.append("</tbody></table>");
         if (rows.size() > 20) {
-            sb.append("<div class='tableMore'><button class='link' type='button' id='detMore'>显示全部 ")
+            sb.append("<div class='tableMore' id='detMoreWrap'><button class='link' type='button' id='detMore'>显示全部 ")
               .append(rows.size()).append(" 条</button></div>");
         }
         sb.append("</div></section>");
@@ -304,7 +316,7 @@ public final class Sections {
             "<dt>AI 模型</dt><dd><select id='modelSel' aria-label='选择 AI 模型'></select>" +
             "<span class='hint' id='modelHint'>读取中…</span></dd>" +
             "<dt>分类数</dt><dd>" + Cat.ALL.length + " 类（AI 只能从这里选）</dd>" +
-            "<dt>版本</dt><dd>v3.0.10 · 补丁 10（2026-11-26）</dd>" +
+            "<dt>版本</dt><dd>v3.0.11 · 补丁 11（2026-11-27）</dd>" +
             "</dl><p class='hint'>预算按月份存在库里（`budgets` 表，没设过的月份默认 ¥1,500）；分类清单暂时写死在 `Cat.ALL`。</p></div>" +
             "</section>";
     }

@@ -267,6 +267,9 @@
   .share li.ty .nm i{width:9px;height:5px}
   .share li.ty .am{font-size:10px;color:var(--dim)}
   .share li.sep{height:1px;padding:0;margin:4px 0 3px;background:var(--line);flex:0 0 auto}
+  .share li.clickable{cursor:pointer}
+  .share li.clickable:hover .nm{color:var(--ink)}
+  .share li.clickable:active .nm{color:var(--accent)}
 
   /* ---- 表格 ---- */
   table{width:100%;border-collapse:collapse}
@@ -591,6 +594,27 @@ thead th{white-space:nowrap}
 .tableMore{padding:10px 12px;border-top:1px solid var(--line);text-align:center}
 .tableMore .link{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim)}
 .tableMore .link:hover{color:var(--accent)}
+
+/* 明细：搜索栏（关键词过滤备注 / 分类，环图点分类也能进来） */
+.detTools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.detSearch{
+  display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;min-width:300px;
+  border:1px solid var(--line);background:rgba(255,255,255,.02);
+  transition:border-color .15s linear,background .15s linear;
+}
+.detSearch:focus-within{border-color:rgba(255,138,30,.55);background:rgba(255,138,30,.04)}
+.detSearch > span{font-size:13px;line-height:1;color:var(--faint)}
+.detSearch input{
+  flex:1;min-width:0;height:100%;background:none;border:0;outline:none;
+  color:var(--ink);font-family:var(--mono);font-size:12px;letter-spacing:.04em;
+}
+.detSearch input::placeholder{color:var(--faint)}
+.detSearch input::-webkit-search-cancel-button{display:none}
+.detCount{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--accent)}
+.detCount:empty{display:none}
+.detTip{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--dim)}
+.detTools .link{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--dim)}
+.detTools .link:hover{color:var(--accent)}
 
 /* 预算段：改预算的小表单（两列，别占满整行） */
 .budgetForm{grid-template-columns:220px 168px;margin-bottom:16px}

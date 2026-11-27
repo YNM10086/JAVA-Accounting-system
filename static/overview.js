@@ -320,33 +320,41 @@
     }
     const off = () => focus(null);
 
-    const row = (cls, html, entry) => {
+    const row = (cls, html, entry, onClick) => {
       const li = document.createElement("li");
       li.className = cls;
       li.innerHTML = html;
       li.__e = entry;
       li.addEventListener("pointerenter", () => focus(entry));
       li.addEventListener("pointerleave", off);
+      if (onClick) {
+        li.classList.add("clickable");
+        li.title = "点击查看「" + (entry.cat ? entry.cat.name : entry.type.name) + "」的明细";
+        li.addEventListener("click", onClick);
+      }
       ul.appendChild(li);
     };
+    const det = (kw) => { if (typeof window.detFilter === "function") window.detFilter(kw); };
     inner.forEach((t) => row("ty",
       '<span class="nm"><i style="background:' + t.color + '"></i>' + t.name + "</span>" +
-      '<span class="am">' + pct(t.value) + "</span>", { type: t }));
+      '<span class="am">' + pct(t.value) + "</span>", { type: t }, () => det(t.name)));
     const sep = document.createElement("li");
     sep.className = "sep";
     ul.appendChild(sep);
     outer.forEach((c) => row("",
       '<span class="nm"><i style="background:' + c.color + '"></i>' + c.name + "</span>" +
       '<span class="am">¥' + fmt(c.value) + '<span style="color:var(--faint)"> · ' + pct(c.value) + "</span></span>",
-      { cat: c }));
+      { cat: c }, () => det(c.name)));
 
     outerArcs.forEach((o) => {
       o.el.addEventListener("pointerenter", () => focus({ cat: o.c }));
       o.el.addEventListener("pointerleave", off);
+      o.el.addEventListener("click", () => det(o.c.name));
     });
     innerArcs.forEach((o) => {
       o.el.addEventListener("pointerenter", () => focus({ type: o.t }));
       o.el.addEventListener("pointerleave", off);
+      o.el.addEventListener("click", () => det(o.t.name));
     });
     reset();
   }

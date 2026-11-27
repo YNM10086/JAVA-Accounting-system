@@ -376,14 +376,82 @@
     document.querySelectorAll("section.sec").forEach((s) => io.observe(s));
   }
 
-  /* ---------------- 6b. 明细：展开全部 ---------------- */
-  function detailMore() {
-    const btn = document.getElementById("detMore");
-    if (!btn) return;
-    btn.addEventListener("click", () => {
-      document.querySelectorAll("#details tbody tr.more").forEach((tr) => { tr.hidden = false; });
-      btn.parentElement.remove();
+  /* ---------------- 6b. 明细：关键词搜索 / 环图联动 / 展开全部 ---------------- */
+  let detQuery = "";
+  let detExpanded = false;
+  let detHit = 0;
+
+  function detRows() {
+    const t = $("detTable");
+    return t ? Array.prototype.slice.call(t.querySelectorAll("tbody tr[data-row]")) : [];
+  }
+
+  /** 按当前关键词重画行：搜到的一律展开；没搜时回到「前 20 条」 */
+  function detPaint() {
+    const rows = detRows();
+    if (!rows.length) return;
+    const q = detQuery.trim().toLowerCase();
+    let hit = 0;
+    rows.forEach((tr, i) => {
+      const ok = !q || (tr.textContent || "").toLowerCase().indexOf(q) >= 0;
+      if (ok) hit++;
+      tr.hidden = q ? !ok : (!detExpanded && i >= 20);
     });
+    detHit = hit;
+
+    const cnt = $("detCount");
+    const clr = $("detClear");
+    const more = $("detMoreWrap");
+    const noHit = $("detNoHit");
+    if (cnt) cnt.textContent = q ? "找到 " + hit + " 条" : "";
+    if (clr) clr.hidden = !q;
+    if (noHit) noHit.hidden = !(q && hit === 0);
+    if (more) more.hidden = !!q || detExpanded || rows.length <= 20;
+  }
+
+  /** 环图 / 图例点分类 → 填关键词并滚到明细；不传 = 清空恢复 */
+  function detFilter(kw) {
+    const box = $("detSearch");
+    if (!box) return;
+    detQuery = (kw || "").trim();
+    box.value = detQuery;
+    detExpanded = false;
+    detPaint();
+    if (!detQuery) { flash("明细已恢复：前 20 条"); return; }
+    const sec = $("details");
+    if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      const u = new URL(location.href);
+      u.hash = "#details";
+      history.replaceState(null, "", u.pathname + u.search + u.hash);
+    } catch (e) { /* 忽略 */ }
+    flash("已筛选「" + detQuery + "」· " + detHit + " 条");
+  }
+  window.detFilter = detFilter;
+
+  function detailMore() {
+    const btn = $("detMore");
+    if (btn && btn.dataset.bound !== "1") {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        detExpanded = true;
+        detPaint();
+        flash("已展开全部 " + detRows().length + " 条");
+      });
+    }
+    const clr = $("detClear");
+    if (clr && clr.dataset.bound !== "1") {
+      clr.dataset.bound = "1";
+      clr.addEventListener("click", () => detFilter(""));
+    }
+    const box = $("detSearch");
+    if (box && box.dataset.bound !== "1") {
+      box.dataset.bound = "1";
+      box.addEventListener("input", () => { detQuery = box.value; detPaint(); });
+      box.addEventListener("keydown", (e) => { if (e.key === "Escape") detFilter(""); });
+    }
+    if (box && box.value !== detQuery) box.value = detQuery;   // 静默刷新换过 DOM，把关键词填回去
+    detPaint();
   }
 
   /* ---------------- 7. 设置页里的 AI 状态与模型切换 ---------------- */
